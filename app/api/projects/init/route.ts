@@ -200,8 +200,11 @@ export async function POST(req: Request) {
       await scaffold(dir, stack ?? "nextjs");
     }
 
-    // Always git init
-    await exec("git init", { cwd: dir });
+    // Only git init if the directory is not already inside a git repo
+    const { stdout: gitRoot } = await exec("git rev-parse --show-toplevel", { cwd: dir }).catch(() => ({ stdout: "" }));
+    if (!gitRoot.trim()) {
+      await exec("git init", { cwd: dir });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
