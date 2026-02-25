@@ -721,6 +721,9 @@ export default function PipelineRunPage({ params }: { params: Promise<{ runId: s
                   : state === "failed" ? "bg-red-500"
                   : "bg-zinc-700";
 
+                const hasIterations = totalIterations > 1 && (step === "coding" || step === "reviewing");
+                const currentIter = step === "coding" ? (codingIteration ?? totalIterations) : (reviewingIteration ?? totalIterations);
+
                 return (
                   <div key={step} className="flex items-center">
                     <button
@@ -758,6 +761,33 @@ export default function PipelineRunPage({ params }: { params: Promise<{ runId: s
                       </div>
                     </button>
 
+                    {/* Iteration pills — inline right after the step button */}
+                    {hasIterations && isSelected && (
+                      <div className="flex items-center gap-0.5 ml-1.5">
+                        {Array.from({ length: totalIterations }, (_, j) => j + 1).map((iter) => (
+                          <button
+                            key={iter}
+                            onClick={() => {
+                              if (step === "coding") setCodingIteration(iter);
+                              else setReviewingIteration(iter);
+                            }}
+                            className={`
+                              flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-medium tabular-nums
+                              transition-all duration-150
+                              ${iter === currentIter
+                                ? "bg-white/[0.1] text-zinc-100 ring-1 ring-white/[0.15]"
+                                : "text-zinc-600 hover:bg-white/[0.04] hover:text-zinc-400"
+                              }
+                            `}
+                            title={`Iteration ${iter}`}
+                            style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}
+                          >
+                            {iter}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Connector between steps */}
                     {i < STEPS.length - 1 && (
                       <div className="mx-0.5 h-[2px] w-6 rounded-full bg-white/[0.06] shrink-0" />
@@ -765,25 +795,6 @@ export default function PipelineRunPage({ params }: { params: Promise<{ runId: s
                   </div>
                 );
               })}
-
-              {/* Iteration dropdown for coding/reviewing */}
-              {totalIterations > 1 && (activeTab === "coding" || activeTab === "reviewing") && (
-                <select
-                  value={(activeTab === "coding" ? codingIteration : reviewingIteration) ?? totalIterations}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    if (activeTab === "coding") setCodingIteration(val);
-                    else setReviewingIteration(val);
-                  }}
-                  className="ml-auto rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-white/[0.12] transition-colors"
-                >
-                  {Array.from({ length: totalIterations }, (_, i) => i + 1).map((iter) => (
-                    <option key={iter} value={iter}>
-                      Iteration {iter}{iter === totalIterations ? " (latest)" : ""}
-                    </option>
-                  ))}
-                </select>
-              )}
             </div>
           </div>
         </div>
