@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   }
 
   // Fire and forget
-  startPipeline(run.id, projectId, project.path, specContent, specTitle, reviewThreshold, reviewMaxRetries);
+  startPipeline(run.id, projectId, project.path, specificationId, specContent, specTitle, reviewThreshold, reviewMaxRetries);
 
   return Response.json({ id: run.id });
 }

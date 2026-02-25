@@ -327,10 +327,18 @@ The JSON must be valid and parseable. Output it as the very last thing in your r
   return reviewResult;
 }
 
+async function setSpecStatus(specificationId: string, status: "draft" | "pipeline" | "failed" | "cancelled" | "done") {
+  await getSupabase()
+    .from("specifications")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", specificationId);
+}
+
 export async function startPipeline(
   runId: string,
   projectId: string,
   projectPath: string,
+  specificationId: string,
   specContent: string,
   specTitle: string,
   threshold: number,
@@ -349,6 +357,9 @@ export async function startPipeline(
     maxRetries,
   };
   runs.set(runId, state);
+
+  // Mark spec as in-pipeline
+  await setSpecStatus(specificationId, "pipeline");
 
   const shortId = runId.slice(0, 8);
   const branchName = `pipeline/${shortId}`;
@@ -597,6 +608,7 @@ Fix the issues identified by the reviewer. The codebase already contains your pr
 
       setRunStatus(runId, "success", null);
       await updateDb(runId, { status: "success", finished_at: new Date().toISOString() });
+      await setSpecStatus(specificationId, "done");
     } else {
       // maxRetries=0 (single-pass, no retry loop) → "failed"; maxRetries>=1 → "rejected"
       const finalStatus: PipelineStatus = maxRetries === 0 ? "failed" : "rejected";
@@ -607,6 +619,7 @@ Fix the issues identified by the reviewer. The codebase already contains your pr
       pushLog(runId, "reviewing", "stderr", `${errorMsg}.${exhaustionSuffix}`);
       setRunStatus(runId, finalStatus, null, finalScore);
       await updateDb(runId, { status: finalStatus, error_message: errorMsg, finished_at: new Date().toISOString() });
+      await setSpecStatus(specificationId, "failed");
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -620,6 +633,7 @@ Fix the issues identified by the reviewer. The codebase already contains your pr
       error_message: isCancelled ? "Cancelled by user" : message,
       finished_at: new Date().toISOString(),
     });
+    await setSpecStatus(specificationId, isCancelled ? "cancelled" : "failed");
   } finally {
     if (state.status === "success") {
       pushLog(runId, state.currentStep ?? "worktree", "stdout", "Cleaning up worktree...");
