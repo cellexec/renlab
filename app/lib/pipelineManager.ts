@@ -701,10 +701,12 @@ export function retryMerge(
   execute().catch(() => {});
 }
 
-export function cancelPipeline(runId: string) {
+/** Abort the in-memory pipeline. Returns true if the run was found in memory. */
+export function cancelPipeline(runId: string): boolean {
   const state = runs.get(runId);
-  if (!state) return;
+  if (!state) return false;
   state.abortController.abort();
+  return true;
 }
 
 export function getPipelineStatus(runId: string): { status: PipelineStatus; currentStep: PipelineStep | null; reviewScore: number | null; stepTimings: StepTimings; iteration: number; maxRetries: number } {

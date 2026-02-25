@@ -35,7 +35,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ runId: 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
 
-  cancelPipeline(runId);
+  const aborted = cancelPipeline(runId);
+
+  if (!aborted) {
+    // In-memory state is gone (server restart / HMR) — update DB directly
+    await getSupabase()
+      .from("pipeline_runs")
+      .update({
+        status: "cancelled",
+        error_message: "Cancelled by user",
+        finished_at: new Date().toISOString(),
+      })
+      .eq("id", runId)
+      .in("status", ["pending", "worktree", "coding", "reviewing", "merging"]);
+  }
 
   return Response.json({ ok: true });
 }
