@@ -152,6 +152,7 @@ function formatToolDetail(name: string, input: Record<string, unknown>): string 
   if (input.file_path) return ` ${input.file_path}`;
   if (name === "Bash" && input.command) return ` $ ${String(input.command).slice(0, 120)}`;
   if (input.description) return ` ${String(input.description).slice(0, 120)}`;
+  if (input.subject) return ` ${String(input.subject).slice(0, 120)}`;
   if (input.pattern) return ` ${input.pattern}`;
   if (input.query) return ` ${String(input.query).slice(0, 120)}`;
   if (input.prompt) return ` ${String(input.prompt).slice(0, 120)}`;
