@@ -163,6 +163,7 @@ async function consumeAgentStream(
   agentStream: AsyncIterable<import("claude-agent-sdk").StreamMessage>,
   runId: string,
   step: PipelineStep,
+  signal?: AbortSignal,
 ): Promise<{ resultMessage: import("claude-agent-sdk").ResultMessage | null; resultText: string }> {
   let textBuffer = "";
   let currentToolName: string | null = null;
@@ -181,6 +182,7 @@ async function consumeAgentStream(
   }
 
   for await (const msg of agentStream) {
+    if (signal?.aborted) throw new Error("Cancelled");
     if (msg.type === "result") {
       resultMessage = msg;
     } else if (msg.type === "stream_event") {
@@ -278,7 +280,7 @@ The JSON must be valid and parseable. Output it as the very last thing in your r
 
   let reviewResult: { score: number; summary: string; issues: string[] } | null = null;
 
-  const { resultMessage: resultMsg, resultText: reviewText } = await consumeAgentStream(reviewStream, runId, "reviewing");
+  const { resultMessage: resultMsg, resultText: reviewText } = await consumeAgentStream(reviewStream, runId, "reviewing", ac.signal);
 
   pushLog(runId, "reviewing", "stdout", `Review agent finished (subtype: ${resultMsg?.subtype ?? "none"})`);
 
@@ -452,7 +454,7 @@ Implement this specification completely. Make all necessary file changes. Follow
           signal: ac.signal,
         });
 
-        await consumeAgentStream(codingStream, runId, "coding");
+        await consumeAgentStream(codingStream, runId, "coding", ac.signal);
       } else {
         pushLog(runId, "coding", "stdout", `Starting coding agent retry (iteration ${attempt}/${totalAttempts})...`);
 
@@ -484,7 +486,7 @@ Fix the issues identified by the reviewer. The codebase already contains your pr
           signal: ac.signal,
         });
 
-        await consumeAgentStream(codingStream, runId, "coding");
+        await consumeAgentStream(codingStream, runId, "coding", ac.signal);
       }
 
       pushLog(runId, "coding", "stdout", "Coding agent completed.");
