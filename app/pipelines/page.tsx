@@ -6,40 +6,9 @@ import Link from "next/link";
 import { useProjectContext } from "../components/ProjectContext";
 import { usePipelineStore } from "../hooks/usePipelineStore";
 import { useSpecificationStore } from "../hooks/useSpecificationStore";
-import type { PipelineRun, PipelineStatus, PipelineStep } from "../pipelines";
+import type { PipelineRun, PipelineStatus } from "../pipelines";
 
 type ScoreRange = "high" | "mid" | "low" | null;
-
-// =============================================================================
-// Step state logic (reused from PipelineSteps.tsx)
-// =============================================================================
-
-const STEPS: { key: PipelineStep; label: string }[] = [
-  { key: "worktree", label: "Worktree" },
-  { key: "coding", label: "Coding" },
-  { key: "reviewing", label: "Reviewing" },
-  { key: "merging", label: "Merging" },
-];
-
-function getStepState(
-  stepKey: PipelineStep,
-  status: PipelineStatus,
-  currentStep: PipelineStep | null
-): "pending" | "active" | "complete" | "failed" {
-  const stepOrder = STEPS.map((s) => s.key);
-  const stepIdx = stepOrder.indexOf(stepKey);
-  const currentIdx = currentStep ? stepOrder.indexOf(currentStep) : -1;
-
-  if (status === "success") return "complete";
-  if (status === "failed" || status === "cancelled" || status === "rejected") {
-    if (stepIdx < currentIdx) return "complete";
-    if (stepIdx === currentIdx) return "failed";
-    return "pending";
-  }
-  if (stepIdx < currentIdx) return "complete";
-  if (stepIdx === currentIdx) return "active";
-  return "pending";
-}
 
 // =============================================================================
 // Display group types + config
@@ -190,11 +159,13 @@ function IconChevron({ open, className = "w-4 h-4" }: { open: boolean; className
   );
 }
 
-function IconEye({ className = "w-3.5 h-3.5" }: { className?: string }) {
+function IconRepeat({ className = "w-3.5 h-3.5" }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 1l4 4-4 4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 11V9a4 4 0 014-4h14" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 23l-4-4 4-4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 13v2a4 4 0 01-4 4H3" />
     </svg>
   );
 }
@@ -281,91 +252,19 @@ function StatCard({
 }
 
 // =============================================================================
-// Step timeline
-// =============================================================================
-
-function StepTimeline({ run }: { run: PipelineRun }) {
-  const totalAttempts = (run.maxRetries ?? 0) + 1;
-
-  return (
-    <div className="flex flex-col gap-0 py-3 pl-6 pr-4">
-      {STEPS.map((step, i) => {
-        const isLast = i === STEPS.length - 1;
-        const state = getStepState(step.key, run.status, run.currentStep);
-
-        const dotColor =
-          state === "complete"
-            ? "bg-emerald-500"
-            : state === "active"
-              ? "bg-indigo-500"
-              : state === "failed"
-                ? "bg-red-500"
-                : "bg-zinc-600";
-        const lineColor =
-          state === "complete" ? "bg-emerald-500/40" : "bg-zinc-700/60";
-
-        const showIteration =
-          totalAttempts > 1 && (step.key === "coding" || step.key === "reviewing");
-
-        return (
-          <div key={step.key} className="flex items-start gap-3 relative">
-            <div className="flex flex-col items-center">
-              <div
-                className={`w-2.5 h-2.5 rounded-full ${dotColor} shrink-0 mt-[5px] ${
-                  state === "active" ? "animate-pulse" : ""
-                }`}
-              />
-              {!isLast && <div className={`w-[1.5px] h-6 ${lineColor}`} />}
-            </div>
-            <div className="flex items-center justify-between w-full min-h-[32px] pb-1">
-              <span
-                className={`text-[13px] ${
-                  state === "pending"
-                    ? "text-zinc-500"
-                    : state === "failed"
-                      ? "text-red-400"
-                      : "text-zinc-300"
-                }`}
-              >
-                {step.label}
-                {state === "active" && (
-                  <span className="ml-2 text-indigo-400 text-xs font-medium">in progress...</span>
-                )}
-                {state === "failed" && (
-                  <span className="ml-2 text-red-400 text-xs font-medium">error</span>
-                )}
-                {showIteration && state === "active" && (
-                  <span className="ml-1 text-zinc-500 text-xs">
-                    ({run.iterations}/{totalAttempts})
-                  </span>
-                )}
-              </span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// =============================================================================
 // Pipeline row
 // =============================================================================
 
 function PipelineRow({
   run,
   specTitle,
-  expanded,
-  onToggle,
-  onView,
+  onClick,
   onCancel,
   style,
 }: {
   run: PipelineRun;
   specTitle: string;
-  expanded: boolean;
-  onToggle: () => void;
-  onView: () => void;
+  onClick: () => void;
   onCancel: () => void;
   style: React.CSSProperties;
 }) {
@@ -373,26 +272,15 @@ function PipelineRow({
   const groupCfg = GROUP_CONFIG[group];
   const badge = STATUS_BADGE[run.status];
   const isActive = ACTIVE_STATUSES.includes(run.status);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [contentHeight, setContentHeight] = useState(0);
-
-  useEffect(() => {
-    if (contentRef.current) {
-      setContentHeight(contentRef.current.scrollHeight);
-    }
-  }, [expanded]);
 
   return (
     <div style={style} className="animate-fade-in-up">
-      {/* Main row */}
       <div
         className={`group relative border-l-[3px] ${groupCfg.border} bg-white/[0.015] hover:bg-white/[0.04] border-b border-white/[0.04] transition-all duration-200 cursor-pointer`}
-        onClick={onToggle}
+        onClick={onClick}
       >
         <div className="flex items-center gap-4 px-4 py-3">
-          <IconChevron open={expanded} className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-
-          {/* Run ID + spec badge */}
+          {/* Status + iterations badges */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span
@@ -401,6 +289,12 @@ function PipelineRow({
                 <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
                 {badge.label}
               </span>
+              {run.iterations > 1 && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-500/10 text-zinc-400">
+                  <IconRepeat className="w-3 h-3" />
+                  {run.iterations}&times;
+                </span>
+              )}
             </div>
             <Link
               href={`/specifications/${run.specificationId}`}
@@ -449,16 +343,9 @@ function PipelineRow({
             {relativeTime(run.createdAt)}
           </span>
 
-          {/* Hover action icons */}
-          <div className="flex items-center gap-1 opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 shrink-0">
-            <button
-              onClick={(e) => { e.stopPropagation(); onView(); }}
-              className="p-1.5 rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-violet-400 transition-colors"
-              title="View"
-            >
-              <IconEye />
-            </button>
-            {isActive && (
+          {/* Cancel button for active runs */}
+          {isActive && (
+            <div className="flex items-center gap-1 opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 shrink-0">
               <button
                 onClick={(e) => { e.stopPropagation(); onCancel(); }}
                 className="p-1.5 rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-red-400 transition-colors"
@@ -466,18 +353,8 @@ function PipelineRow({
               >
                 <IconX />
               </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Expandable step timeline */}
-      <div
-        className="overflow-hidden transition-all duration-300 ease-in-out bg-white/[0.01] border-b border-white/[0.04]"
-        style={{ maxHeight: expanded ? contentHeight : 0, opacity: expanded ? 1 : 0 }}
-      >
-        <div ref={contentRef}>
-          <StepTimeline run={run} />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -515,7 +392,7 @@ function TocSidebar({
   onScoreFilter: (range: ScoreRange) => void;
 }) {
   return (
-    <div className="w-[200px] shrink-0 hidden lg:block">
+    <div className="w-[200px] shrink-0">
       <div className="sticky top-6">
         <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
           <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-3">
@@ -606,7 +483,6 @@ export default function PipelinesPage() {
   const { specifications } = useSpecificationStore(activeProject?.id ?? null);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<DisplayGroup>>(new Set());
   const [activeGroup, setActiveGroup] = useState<DisplayGroup | null>("active");
   const [scoreFilter, setScoreFilter] = useState<ScoreRange>(null);
@@ -717,15 +593,6 @@ export default function PipelinesPage() {
     return { total, successRate, avgDurationMin, activeNow };
   }, [runs]);
 
-  const toggleRun = useCallback((id: string) => {
-    setExpandedRuns((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
   const toggleGroup = useCallback((group: DisplayGroup) => {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
@@ -796,7 +663,7 @@ export default function PipelinesPage() {
           ) : (
             <>
               {/* Stat cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+              <div className="grid grid-cols-4 gap-3 mb-6">
                 <StatCard
                   label="Total Runs"
                   value={stats.total}
@@ -908,9 +775,7 @@ export default function PipelinesPage() {
                                 key={run.id}
                                 run={run}
                                 specTitle={specTitleMap.get(run.specificationId) ?? "Untitled Spec"}
-                                expanded={expandedRuns.has(run.id)}
-                                onToggle={() => toggleRun(run.id)}
-                                onView={() => router.push(`/pipelines/${run.id}`)}
+                                onClick={() => router.push(`/pipelines/${run.id}`)}
                                 onCancel={() => cancelRun(run.id)}
                                 style={{ animationDelay: `${300 + idx * 60}ms` }}
                               />
