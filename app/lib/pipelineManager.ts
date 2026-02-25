@@ -77,7 +77,7 @@ function setRunStatus(runId: string, status: PipelineStatus, step: PipelineStep 
   const nextKey = step ? stepTimingKey(step, state.iteration) : null;
 
   // End previous step if transitioning to a different step
-  if (prevKey && prevKey !== nextKey && state.stepTimings[prevKey]?.endedAt == null) {
+  if (prevKey && prevKey !== nextKey && state.stepTimings[prevKey] && state.stepTimings[prevKey].endedAt == null) {
     state.stepTimings[prevKey].endedAt = now;
   }
   // Start new step if it hasn't been started yet
@@ -85,7 +85,7 @@ function setRunStatus(runId: string, status: PipelineStatus, step: PipelineStep 
     state.stepTimings[nextKey] = { startedAt: now, endedAt: null };
   }
   // End current step if pipeline is finishing (step becomes null)
-  if (!step && prevKey && state.stepTimings[prevKey]?.endedAt == null) {
+  if (!step && prevKey && state.stepTimings[prevKey] && state.stepTimings[prevKey].endedAt == null) {
     state.stepTimings[prevKey].endedAt = now;
   }
 
@@ -410,6 +410,14 @@ export async function startPipeline(
     let lastReviewResult: { score: number; summary: string; issues: string[] } | null = null;
 
     for (let attempt = 1; attempt <= totalAttempts; attempt++) {
+      // End the previous iteration's step timing before bumping the iteration counter,
+      // so setRunStatus computes the correct timing key (e.g. "reviewing-1" not "reviewing-2")
+      if (attempt > 1 && state.currentStep) {
+        const prevKey = stepTimingKey(state.currentStep, state.iteration);
+        if (state.stepTimings[prevKey] && state.stepTimings[prevKey].endedAt == null) {
+          state.stepTimings[prevKey].endedAt = Date.now();
+        }
+      }
       state.iteration = attempt;
       await updateDb(runId, { iterations: attempt });
 
