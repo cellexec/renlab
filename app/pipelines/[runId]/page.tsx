@@ -163,7 +163,7 @@ function StepLogViewer({ logs, step, selectedIteration }: { logs: PipelineLogEnt
       ref={scrollRef}
       onScroll={handleScroll}
       style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}
-      className="flex-1 overflow-y-auto p-4 text-[13px] leading-5"
+      className="log-scroll flex-1 overflow-y-auto p-4 text-[13px] leading-5"
     >
       {filtered.length === 0 ? (
         <div className="flex h-full items-center justify-center text-zinc-600">
@@ -526,6 +526,23 @@ export default function PipelineRunPage({ params }: { params: Promise<{ runId: s
         .fade-in-up {
           opacity: 0;
           animation: fadeInUp 500ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .log-scroll::-webkit-scrollbar {
+          width: 6px;
+        }
+        .log-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .log-scroll::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.08);
+          border-radius: 3px;
+        }
+        .log-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.15);
+        }
+        .log-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
         }
       `}</style>
 
