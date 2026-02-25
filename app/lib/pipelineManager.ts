@@ -525,12 +525,21 @@ Fix the issues identified by the reviewer. The codebase already contains your pr
         if (ac.signal.aborted) throw reviewErr;
         const reviewErrMsg = reviewErr instanceof Error ? reviewErr.message : String(reviewErr);
         pushLog(runId, "reviewing", "stderr", `Review parse failure: ${reviewErrMsg}`);
+
         if (attempt < totalAttempts) {
           pushLog(runId, "reviewing", "stderr", `Continuing to next iteration (${attempt + 1}/${totalAttempts})...`);
           continue;
         }
-        // Final iteration — fall through to exhausted-retries logic
-        break;
+
+        // Final iteration — retry the review once more before giving up
+        pushLog(runId, "reviewing", "stdout", "Final iteration: retrying review one more time...");
+        try {
+          reviewResult = await runReview(runId, worktreeCwd, specContent, baseCommit, ac);
+        } catch (retryErr) {
+          if (ac.signal.aborted) throw retryErr;
+          pushLog(runId, "reviewing", "stderr", `Review retry also failed: ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`);
+          break;
+        }
       }
       lastReviewResult = reviewResult;
 

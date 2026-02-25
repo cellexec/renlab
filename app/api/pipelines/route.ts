@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const { projectId, specificationId, specVersionId, specContent, specTitle, threshold, maxRetries } = await req.json();
 
-  if (!projectId || !specificationId || !specVersionId || !specContent) {
+  if (!projectId || !specificationId || !specVersionId || !specContent?.trim()) {
     return Response.json({ error: "Missing required fields" }, { status: 400 });
   }
 

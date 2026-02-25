@@ -183,24 +183,27 @@ export function useSpecificationStore(projectId: string | null = null) {
 
   const updateTitle = useCallback(
     async (id: string, title: string) => {
-      await getSupabase()
+      const { error } = await getSupabase()
         .from("specifications")
         .update({ title, updated_at: new Date().toISOString() })
         .eq("id", id);
+      if (error) throw new Error(error.message);
     },
     []
   );
 
   const deleteSpecification = useCallback(async (id: string) => {
-    await getSupabase().from("specifications").delete().eq("id", id);
+    const { error } = await getSupabase().from("specifications").delete().eq("id", id);
+    if (error) throw new Error(error.message);
   }, []);
 
   const updateStatus = useCallback(
     async (id: string, status: SpecificationStatus) => {
-      await getSupabase()
+      const { error } = await getSupabase()
         .from("specifications")
         .update({ status, updated_at: new Date().toISOString() })
         .eq("id", id);
+      if (error) throw new Error(error.message);
     },
     []
   );
