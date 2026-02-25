@@ -10,20 +10,25 @@ const MIN_WIDTH = 180;
 const MAX_WIDTH = 480;
 
 export function useSidebarState() {
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem(COLLAPSED_KEY) === "true";
-  });
-
-  const [expandedWidth, setExpandedWidth] = useState(() => {
-    if (typeof window === "undefined") return DEFAULT_WIDTH;
-    const stored = localStorage.getItem(WIDTH_KEY);
-    if (!stored) return DEFAULT_WIDTH;
-    const parsed = parseInt(stored, 10);
-    return Number.isFinite(parsed) ? Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, parsed)) : DEFAULT_WIDTH;
-  });
-
+  const [collapsed, setCollapsed] = useState(false);
+  const [expandedWidth, setExpandedWidth] = useState(DEFAULT_WIDTH);
   const [isDragging, setIsDragging] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Sync from localStorage after mount to avoid SSR hydration mismatch
+  useEffect(() => {
+    const storedCollapsed = localStorage.getItem(COLLAPSED_KEY) === "true";
+    setCollapsed(storedCollapsed);
+
+    const storedWidth = localStorage.getItem(WIDTH_KEY);
+    if (storedWidth) {
+      const parsed = parseInt(storedWidth, 10);
+      if (Number.isFinite(parsed)) {
+        setExpandedWidth(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, parsed)));
+      }
+    }
+    setHydrated(true);
+  }, []);
 
   const toggle = useCallback(() => {
     setCollapsed((prev) => {
@@ -67,6 +72,9 @@ export function useSidebarState() {
     return () => {
       document.removeEventListener("mousemove", move);
       document.removeEventListener("mouseup", up);
+      // Clean up body styles if component unmounts mid-drag
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
     };
   }, [isDragging, onDragMove, onDragEnd]);
 
@@ -91,5 +99,6 @@ export function useSidebarState() {
     expandedWidth,
     isDragging,
     onDragStart,
+    hydrated,
   } as const;
 }

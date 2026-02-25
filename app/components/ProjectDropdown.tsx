@@ -18,25 +18,25 @@ export function ProjectDropdown({ projects, activeProject, onSelect, onDelete, c
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!open) return;
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setConfirmDeleteId(null); }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  }, [open]);
 
   if (collapsed) {
     return (
       <div className="flex justify-center px-1.5 pb-2">
-        <button
-          onClick={() => setOpen(!open)}
-          className="rounded-md p-2 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+        <div
+          className="rounded-md p-2 text-zinc-500"
           title={activeProject ? activeProject.title : "No project"}
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
           </svg>
-        </button>
+        </div>
       </div>
     );
   }

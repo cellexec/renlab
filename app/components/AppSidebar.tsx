@@ -79,10 +79,13 @@ const globalNavItems = [
 
 // ── Tooltip wrapper for collapsed nav icons ─────────────────────────────────
 
+let tooltipIdCounter = 0;
+
 function NavTooltip({ label, children }: { label: string; children: React.ReactNode }) {
   const [show, setShow] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const tooltipId = useRef(`nav-tooltip-${++tooltipIdCounter}`);
 
   const onEnter = () => {
     if (ref.current) {
@@ -93,10 +96,12 @@ function NavTooltip({ label, children }: { label: string; children: React.ReactN
   };
 
   return (
-    <div ref={ref} onMouseEnter={onEnter} onMouseLeave={() => setShow(false)} className="relative">
+    <div ref={ref} onMouseEnter={onEnter} onMouseLeave={() => setShow(false)} className="relative" aria-describedby={show ? tooltipId.current : undefined}>
       {children}
       {show && (
         <div
+          id={tooltipId.current}
+          role="tooltip"
           className="pointer-events-none fixed z-50 -translate-y-1/2 whitespace-nowrap rounded-md bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-zinc-200 shadow-lg border border-white/[0.08]"
           style={{ top: pos.top, left: pos.left }}
         >
@@ -162,7 +167,7 @@ function BrandHeader({ collapsed }: { collapsed: boolean }) {
 export function AppSidebar() {
   const pathname = usePathname();
   const { projects, activeProject, setActiveProjectId, deleteProject } = useProjectContext();
-  const { collapsed, toggle, sidebarWidth, isDragging, onDragStart } = useSidebarState();
+  const { collapsed, toggle, sidebarWidth, isDragging, onDragStart, hydrated } = useSidebarState();
 
   const renderNavItem = (
     item: { label: string; href: string; icon: React.ReactNode },
@@ -200,7 +205,7 @@ export function AppSidebar() {
       className={`relative flex shrink-0 flex-col border-r border-white/[0.06] bg-zinc-950 overflow-hidden ${
         isDragging ? "" : "transition-[width] duration-200 ease-in-out"
       }`}
-      style={{ width: sidebarWidth }}
+      style={{ width: sidebarWidth, visibility: hydrated ? "visible" : "hidden" }}
     >
       <BrandHeader collapsed={collapsed} />
 
@@ -251,6 +256,7 @@ export function AppSidebar() {
       <div className={`border-t border-white/[0.06] ${collapsed ? "px-1.5" : "px-3"} py-3`}>
         <button
           onClick={toggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className={`flex w-full items-center rounded-md px-2.5 py-2 text-sm text-zinc-400 transition-colors hover:bg-white/[0.04] hover:text-zinc-200 ${
             collapsed ? "justify-center" : "gap-3"
           }`}
@@ -269,6 +275,8 @@ export function AppSidebar() {
       {/* Drag handle (expanded only) */}
       {!collapsed && (
         <div
+          role="separator"
+          aria-label="Resize sidebar"
           onMouseDown={onDragStart}
           className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-violet-500/20 transition-colors"
         />
