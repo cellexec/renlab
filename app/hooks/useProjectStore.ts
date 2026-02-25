@@ -53,7 +53,12 @@ export function useProjectStore() {
       .select("*")
       .order("created_at")
       .then(({ data }) => {
-        if (data) setProjects(data.map(toProject));
+        const loaded = data ? data.map(toProject) : [];
+        setProjects(loaded);
+        // Clear stale activeProjectId if the project no longer exists (e.g. after DB reset)
+        setActiveProjectId((cur) =>
+          cur && !loaded.some((p) => p.id === cur) ? null : cur
+        );
         setLoaded(true);
       });
 
