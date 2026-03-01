@@ -10,54 +10,289 @@ import type { PipelineRun, PipelineStep, PipelineLogEntry, StepTimings } from ".
 import type { StepDesignProps } from "./step-designs";
 
 const STEPS: PipelineStep[] = ["worktree", "coding", "reviewing", "merging"];
+const MONO = "var(--font-geist-mono), ui-monospace, monospace";
 
 // =============================================================================
-// ScoreGauge
+// Semi-Circle Score Gauge (from v7)
 // =============================================================================
 
-function ScoreGauge({ score, threshold, animated }: { score: number; threshold: number; animated: boolean }) {
-  const radius = 64;
-  const cx = 80;
-  const cy = 80;
-  const circumference = 2 * Math.PI * radius;
-  const scoreOffset = circumference - (score / 100) * circumference;
-  const thresholdAngle = (threshold / 100) * 360 - 90;
-  const thresholdRad = (thresholdAngle * Math.PI) / 180;
-  const thresholdX = cx + radius * Math.cos(thresholdRad);
-  const thresholdY = cy + radius * Math.sin(thresholdRad);
+function SemiCircleGauge({ score, threshold, animated }: { score: number; threshold: number; animated: boolean }) {
+  const width = 320;
+  const height = 180;
+  const cx = width / 2;
+  const cy = 160;
+  const radius = 120;
+  const strokeW = 14;
+  const semiCircumference = Math.PI * radius;
+  const scoreRatio = Math.min(score / 100, 1);
+  const scoreArc = semiCircumference * scoreRatio;
+  const scoreOffset = semiCircumference - scoreArc;
   const passed = score >= threshold;
   const scoreColor = passed ? "#10b981" : "#ef4444";
-  const scoreGlow = passed ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)";
+  const scoreGlowColor = passed ? "rgba(16,185,129,0.35)" : "rgba(239,68,68,0.35)";
+  const scoreGlowSoft = passed ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)";
+
+  const thresholdRatio = threshold / 100;
+  const thresholdAngle = Math.PI * (1 - thresholdRatio);
+  const thresholdX = cx + radius * Math.cos(thresholdAngle);
+  const thresholdY = cy - radius * Math.sin(thresholdAngle);
+
+  const ticks = [0, 25, 50, 75, 100];
 
   return (
-    <div className="relative flex items-center justify-center">
-      <svg width="160" height="160" viewBox="0 0 160 160" className="drop-shadow-lg">
+    <div className="relative flex flex-col items-center">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-[320px] overflow-visible" preserveAspectRatio="xMidYMax meet">
         <defs>
           <filter id="score-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feGaussianBlur stdDeviation="6" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
           </filter>
-          <linearGradient id="gauge-track" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="rgba(255,255,255,0.06)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,0.02)" />
+          <filter id="score-glow-soft" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="12" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+          <linearGradient id="gauge-track-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.04)" />
+            <stop offset="50%" stopColor="rgba(255,255,255,0.07)" />
+            <stop offset="100%" stopColor="rgba(255,255,255,0.04)" />
           </linearGradient>
         </defs>
-        <circle cx={cx} cy={cy} r={radius} fill="none" stroke="url(#gauge-track)" strokeWidth="10" strokeLinecap="round" />
-        {[0, 25, 50, 75, 100].map((tick) => {
-          const angle = (tick / 100) * 360 - 90;
-          const rad = (angle * Math.PI) / 180;
+
+        {/* Track */}
+        <path d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`} fill="none" stroke="url(#gauge-track-grad)" strokeWidth={strokeW} strokeLinecap="round" />
+
+        {/* Tick marks */}
+        {ticks.map((tick) => {
+          const ratio = tick / 100;
+          const angle = Math.PI * (1 - ratio);
+          const innerR = radius - strokeW / 2 - 6;
+          const outerR = radius - strokeW / 2 - 2;
           return (
-            <line key={tick} x1={cx + 55 * Math.cos(rad)} y1={cy + 55 * Math.sin(rad)} x2={cx + 58 * Math.cos(rad)} y2={cy + 58 * Math.sin(rad)} stroke="rgba(255,255,255,0.1)" strokeWidth="1.5" strokeLinecap="round" />
+            <g key={tick}>
+              <line x1={cx + innerR * Math.cos(angle)} y1={cy - innerR * Math.sin(angle)} x2={cx + outerR * Math.cos(angle)} y2={cy - outerR * Math.sin(angle)} stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" strokeLinecap="round" />
+              <text x={cx + (radius + 18) * Math.cos(angle)} y={cy - (radius + 18) * Math.sin(angle) + 3} textAnchor="middle" fill="rgba(255,255,255,0.2)" fontSize="9" fontFamily={MONO}>{tick}</text>
+            </g>
           );
         })}
-        <circle cx={cx} cy={cy} r={radius} fill="none" stroke={scoreColor} strokeWidth="10" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={animated ? scoreOffset : circumference} transform={`rotate(-90 ${cx} ${cy})`} filter="url(#score-glow)" style={{ transition: animated ? "stroke-dashoffset 1.8s cubic-bezier(0.34, 1.56, 0.64, 1)" : "none" }} />
-        <circle cx={cx} cy={cy} r={radius} fill="none" stroke={scoreGlow} strokeWidth="16" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={animated ? scoreOffset : circumference} transform={`rotate(-90 ${cx} ${cy})`} style={{ transition: animated ? "stroke-dashoffset 1.8s cubic-bezier(0.34, 1.56, 0.64, 1)" : "none" }} />
-        <circle cx={thresholdX} cy={thresholdY} r="3.5" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
-        <text x={thresholdX + (thresholdX > cx ? 9 : -9)} y={thresholdY + 3.5} textAnchor={thresholdX > cx ? "start" : "end"} fill="rgba(255,255,255,0.35)" fontSize="9" fontFamily="var(--font-geist-mono), ui-monospace, monospace">{threshold}</text>
+
+        {/* Soft outer glow */}
+        <path d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`} fill="none" stroke={scoreGlowSoft} strokeWidth={strokeW + 20} strokeLinecap="round" strokeDasharray={semiCircumference} strokeDashoffset={animated ? scoreOffset : semiCircumference} style={{ transition: animated ? "stroke-dashoffset 2s cubic-bezier(0.34, 1.56, 0.64, 1)" : "none" }} />
+
+        {/* Score glow */}
+        <path d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`} fill="none" stroke={scoreGlowColor} strokeWidth={strokeW + 8} strokeLinecap="round" strokeDasharray={semiCircumference} strokeDashoffset={animated ? scoreOffset : semiCircumference} filter="url(#score-glow-soft)" style={{ transition: animated ? "stroke-dashoffset 2s cubic-bezier(0.34, 1.56, 0.64, 1)" : "none" }} />
+
+        {/* Score arc */}
+        <path d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`} fill="none" stroke={scoreColor} strokeWidth={strokeW} strokeLinecap="round" strokeDasharray={semiCircumference} strokeDashoffset={animated ? scoreOffset : semiCircumference} filter="url(#score-glow)" style={{ transition: animated ? "stroke-dashoffset 2s cubic-bezier(0.34, 1.56, 0.64, 1)" : "none" }} />
+
+        {/* Threshold marker */}
+        <circle cx={thresholdX} cy={thresholdY} r="4" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
+        <text x={thresholdX + (thresholdX > cx ? 12 : -12)} y={thresholdY + 4} textAnchor={thresholdX > cx ? "start" : "end"} fill="rgba(255,255,255,0.35)" fontSize="10" fontFamily={MONO}>{threshold}</text>
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-4xl font-bold tabular-nums tracking-tighter" style={{ color: scoreColor, fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}>{score}</span>
-        <span className="text-[11px] text-zinc-500 -mt-0.5">/ 100</span>
+
+      {/* Center score value */}
+      <div className="absolute" style={{ bottom: "8px", left: "50%", transform: "translateX(-50%)" }}>
+        <div className="flex flex-col items-center">
+          <span className="text-3xl md:text-5xl font-bold tabular-nums tracking-tighter" style={{ color: scoreColor, fontFamily: MONO, textShadow: `0 0 30px ${scoreGlowColor}` }}>{score}</span>
+          <span className="text-[11px] text-zinc-500 -mt-1">/ 100</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Timing Widget (from v5)
+// =============================================================================
+
+function TimingWidget({ run, isActive }: { run: PipelineRun | null; isActive: boolean }) {
+  const items = [
+    { label: "Created", value: run ? formatTimestamp(run.createdAt) : "...", done: true },
+    { label: "Finished", value: run?.finishedAt ? formatTimestamp(run.finishedAt) : isActive ? "In progress" : "...", done: !!run?.finishedAt },
+    { label: "Duration", value: run ? totalDuration(run.createdAt, run.finishedAt) : "...", done: !!run?.finishedAt },
+  ];
+
+  return (
+    <div className="flex flex-col rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6">
+      <div className="text-[10px] uppercase tracking-widest text-zinc-600 mb-5 font-medium">Timing</div>
+      <div className="flex flex-col gap-0">
+        {items.map((item, i) => (
+          <div key={item.label} className="flex items-start gap-3">
+            <div className="flex flex-col items-center w-3 shrink-0">
+              <div className={`w-2.5 h-2.5 rounded-full border-2 shrink-0 ${item.done ? "border-emerald-500/60 bg-emerald-500/20" : isActive && i === 1 ? "border-amber-400/60 bg-amber-400/20 animate-pulse" : "border-zinc-700 bg-zinc-800"}`} />
+              {i < items.length - 1 && (
+                <div className={`w-px flex-1 min-h-[28px] ${item.done ? "bg-emerald-500/20" : "bg-zinc-800"}`} />
+              )}
+            </div>
+            <div className="pb-4 -mt-0.5">
+              <div className="text-[10px] text-zinc-600 mb-0.5">{item.label}</div>
+              <div className="text-sm text-zinc-300 tabular-nums" style={{ fontFamily: MONO }}>{item.value}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Config Widget (from v5)
+// =============================================================================
+
+function ConfigWidget({
+  run, totalIterations, totalAttempts, specInfo, specInfoLoading,
+}: {
+  run: PipelineRun | null; totalIterations: number; totalAttempts: number;
+  specInfo: { title: string; versionNumber: number } | null; specInfoLoading: boolean;
+}) {
+  const rows = [
+    {
+      icon: <svg className="h-3.5 w-3.5 text-cyan-500/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 103 3m-3-3a3 3 0 01-3 3m12-9a3 3 0 100-6 3 3 0 000 6zm0 0v3a3 3 0 01-3 3H9" /></svg>,
+      label: "Branch", value: run?.worktreeBranch ?? "...", valueClass: "text-cyan-400/80",
+    },
+    {
+      icon: <svg className="h-3.5 w-3.5 text-violet-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M20.993 4.356v4.992" /></svg>,
+      label: "Iterations", value: `${totalIterations} / ${totalAttempts}`, valueClass: "text-zinc-300",
+    },
+    {
+      icon: <svg className="h-3.5 w-3.5 text-violet-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>,
+      label: "Specification",
+      value: specInfo ? `${specInfo.title} v${specInfo.versionNumber}` : specInfoLoading ? "..." : "Unknown",
+      valueClass: "text-violet-400/80",
+      href: run && specInfo ? `/specifications/${run.specificationId}` : undefined,
+    },
+  ];
+
+  return (
+    <div className="flex flex-col rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6">
+      <div className="text-[10px] uppercase tracking-widest text-zinc-600 mb-5 font-medium">Configuration</div>
+      <div className="flex flex-col gap-4">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.03] border border-white/[0.04] shrink-0">{row.icon}</div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] text-zinc-600 mb-0.5">{row.label}</div>
+              {row.href ? (
+                <Link href={row.href} className={`text-sm truncate block hover:brightness-125 transition-all ${row.valueClass}`} style={{ fontFamily: MONO }} title={row.value}>{row.value}</Link>
+              ) : (
+                <div className={`text-sm truncate tabular-nums ${row.valueClass}`} style={{ fontFamily: MONO }}>{row.value}</div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Status Widget (from v5)
+// =============================================================================
+
+function StatusWidget({ status }: { status: string }) {
+  const config: Record<string, { color: string; glow: string; bg: string; animBg: string; label: string }> = {
+    success: { color: "text-emerald-400", glow: "shadow-[0_0_40px_rgba(16,185,129,0.15)]", bg: "bg-emerald-500/[0.04]", animBg: "radial-gradient(circle at 50% 50%, rgba(16,185,129,0.06) 0%, transparent 70%)", label: "Success" },
+    failed: { color: "text-red-400", glow: "shadow-[0_0_40px_rgba(239,68,68,0.15)]", bg: "bg-red-500/[0.04]", animBg: "radial-gradient(circle at 50% 50%, rgba(239,68,68,0.06) 0%, transparent 70%)", label: "Failed" },
+    cancelled: { color: "text-zinc-400", glow: "", bg: "bg-zinc-500/[0.04]", animBg: "radial-gradient(circle at 50% 50%, rgba(161,161,170,0.04) 0%, transparent 70%)", label: "Cancelled" },
+    rejected: { color: "text-amber-400", glow: "shadow-[0_0_40px_rgba(251,191,36,0.12)]", bg: "bg-amber-500/[0.04]", animBg: "radial-gradient(circle at 50% 50%, rgba(251,191,36,0.06) 0%, transparent 70%)", label: "Rejected" },
+  };
+  const c = config[status] ?? { color: "text-amber-400", glow: "shadow-[0_0_40px_rgba(251,191,36,0.1)]", bg: "bg-amber-500/[0.04]", animBg: "radial-gradient(circle at 50% 50%, rgba(251,191,36,0.06) 0%, transparent 70%)", label: status.charAt(0).toUpperCase() + status.slice(1) };
+  const isRunning = !["success", "failed", "cancelled", "rejected"].includes(status);
+
+  return (
+    <div className={`flex flex-col items-center justify-center rounded-2xl border border-white/[0.06] ${c.bg} p-6 ${c.glow} relative overflow-hidden`}>
+      {isRunning && <div className="absolute inset-0 animate-pulse" style={{ background: c.animBg }} />}
+      <div className="text-[10px] uppercase tracking-widest text-zinc-600 mb-4 font-medium relative z-10">Status</div>
+      <div className="relative z-10 flex flex-col items-center gap-3">
+        <div className="relative">
+          {status === "success" ? (
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+              <svg className="h-7 w-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+            </div>
+          ) : status === "failed" ? (
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20">
+              <svg className="h-7 w-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </div>
+          ) : status === "cancelled" ? (
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-500/10 border border-zinc-500/20">
+              <svg className="h-7 w-7 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+            </div>
+          ) : status === "rejected" ? (
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20">
+              <svg className="h-7 w-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+            </div>
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20">
+              <svg className="h-7 w-7 text-amber-400 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+            </div>
+          )}
+        </div>
+        <span className={`text-lg font-semibold tracking-tight ${c.color}`}>{c.label}</span>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Review Issues Table (from v8)
+// =============================================================================
+
+function ReviewIssuesTable({ summary, issues }: { summary?: string; issues: string[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const getSeverity = (issue: string): { label: string; color: string; bg: string } => {
+    const lower = issue.toLowerCase();
+    if (lower.includes("critical") || lower.includes("security") || lower.includes("crash"))
+      return { label: "critical", color: "text-red-400", bg: "bg-red-500/15 border-red-500/20" };
+    if (lower.includes("missing") || lower.includes("error") || lower.includes("fail") || lower.includes("wrong"))
+      return { label: "major", color: "text-amber-400", bg: "bg-amber-500/15 border-amber-500/20" };
+    return { label: "minor", color: "text-zinc-400", bg: "bg-zinc-500/15 border-zinc-500/20" };
+  };
+
+  return (
+    <div className="mx-4 md:mx-8 mb-4 shrink-0 fade-in-up">
+      <div className="rounded-xl border border-amber-500/10 bg-amber-500/[0.02] overflow-hidden">
+        {/* Header — clickable to toggle */}
+        <button onClick={() => setExpanded((v) => !v)} className="w-full flex items-center gap-3 px-5 py-3 cursor-pointer transition-colors hover:bg-white/[0.02]">
+          <svg className="w-4 h-4 text-amber-500/60 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+          <span className="text-xs font-medium text-amber-400/80">Review Issues</span>
+          <span className="text-[10px] text-zinc-600 tabular-nums" style={{ fontFamily: MONO }}>{issues.length} issue{issues.length !== 1 ? "s" : ""}</span>
+          {summary && <span className="text-[11px] text-zinc-600 truncate flex-1 text-left ml-2">{summary}</span>}
+          <svg className={`w-4 h-4 text-zinc-600 shrink-0 ml-auto transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+        </button>
+
+        {/* Collapsible content */}
+        <div className="grid transition-[grid-template-rows] duration-200" style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}>
+          <div className="overflow-hidden">
+            {/* Summary */}
+            {summary && (
+              <div className="border-t border-amber-500/[0.06] px-5 py-3">
+                <p className="text-xs text-zinc-400 leading-relaxed">{summary}</p>
+              </div>
+            )}
+
+            {/* Table header */}
+            <div className="grid grid-cols-[48px_1fr_90px] items-center gap-4 border-t border-white/[0.04] px-5 py-2" style={{ fontFamily: MONO }}>
+              <span className="text-[10px] uppercase tracking-wider text-zinc-600">#</span>
+              <span className="text-[10px] uppercase tracking-wider text-zinc-600">Description</span>
+              <span className="text-[10px] uppercase tracking-wider text-zinc-600 text-right">Severity</span>
+            </div>
+
+            {/* Table rows */}
+            {issues.map((issue, i) => {
+              const severity = getSeverity(issue);
+              const isEven = i % 2 === 0;
+              return (
+                <div key={i} className={`grid grid-cols-[48px_1fr_90px] items-center gap-4 px-5 py-2.5 ${isEven ? "bg-white/[0.01]" : "bg-transparent"} transition-colors hover:bg-white/[0.03]`}>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/10 text-[11px] font-medium text-amber-400 tabular-nums" style={{ fontFamily: MONO }}>{i + 1}</span>
+                  <span className="text-[12px] text-zinc-300 leading-relaxed">{issue}</span>
+                  <div className="flex justify-end">
+                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${severity.bg} ${severity.color}`}>{severity.label}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -86,7 +321,7 @@ function StepLogViewer({ logs, step, selectedIteration }: { logs: PipelineLogEnt
   const formatTime = (ts: number) => new Date(ts).toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   return (
-    <div ref={scrollRef} onScroll={handleScroll} style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }} className="flex-1 overflow-y-auto p-4 text-[13px] leading-5">
+    <div ref={scrollRef} onScroll={handleScroll} style={{ fontFamily: MONO }} className="flex-1 overflow-y-auto p-4 text-[13px] leading-5">
       {filtered.length === 0 ? (
         <div className="flex h-full items-center justify-center text-zinc-600">No output for this step yet.</div>
       ) : (() => {
@@ -132,17 +367,20 @@ function StepLogViewer({ logs, step, selectedIteration }: { logs: PipelineLogEnt
 // Helpers
 // =============================================================================
 
-function extractReviewDetails(logs: PipelineLogEntry[], iteration: number): { summary?: string; issues?: string[] } {
+function extractReviewDetails(logs: PipelineLogEntry[], iteration: number): { summary?: string; issues?: string[]; score?: number } {
   let summary: string | undefined;
   let issues: string[] | undefined;
+  let score: number | undefined;
   const reviewLogs = logs.filter((l) => l.step === "reviewing" && l.stream === "stdout" && (l.iteration ?? 1) === iteration);
   for (const log of reviewLogs) {
     if (log.text.startsWith("Summary: ")) summary = log.text.replace("Summary: ", "");
     if (log.text.startsWith("Issues:")) {
       issues = log.text.replace("Issues:\n", "").split("\n").map((l) => l.replace(/^\s+-\s*/, "").trim()).filter(Boolean);
     }
+    const scoreMatch = log.text.match(/^Review score:\s*(\d+)\/100$/);
+    if (scoreMatch) score = parseInt(scoreMatch[1], 10);
   }
-  return { summary, issues };
+  return { summary, issues, score };
 }
 
 function getMaxIteration(logs: PipelineLogEntry[]): number {
@@ -246,7 +484,6 @@ export default function PipelinePageShell({
   const isActive = ["pending", "worktree", "coding", "reviewing", "merging"].includes(status);
   const displayStatus = status;
   const displayStep = currentStep;
-  const displayScore = reviewScore ?? run?.reviewScore ?? null;
   const threshold = run?.reviewThreshold ?? 80;
 
   const handleCancel = async () => { setCancelling(true); await fetch(`/api/pipelines/${runId}`, { method: "DELETE" }); };
@@ -260,20 +497,34 @@ export default function PipelinePageShell({
     } catch { setRetrying(false); }
   };
 
-  const { summary: reviewSummary, issues: reviewIssues } = extractReviewDetails(logs, reviewingIteration ?? totalIterations);
+  // Selected iteration (synced across coding/reviewing)
+  const selectedIter = codingIteration ?? reviewingIteration ?? null;
+  const effectiveReviewIter = selectedIter ?? totalIterations;
+
+  const { summary: reviewSummary, issues: reviewIssues, score: iterationScore } = extractReviewDetails(logs, effectiveReviewIter);
+
+  // Per-iteration score: use extracted log score for the selected iteration, fall back to live/db score for latest
+  const isViewingLatest = effectiveReviewIter === totalIterations;
+  const latestScore = reviewScore ?? run?.reviewScore ?? null;
+  const displayScore = isViewingLatest ? latestScore : (iterationScore ?? null);
+
+  // Synced iteration setters — clicking either side selects same iteration on both
+  const setSyncedIteration = (iter: number) => {
+    setCodingIteration(iter);
+    setReviewingIteration(iter);
+  };
 
   const getSelectedIteration = (step: PipelineStep): number | undefined => {
     if (totalIterations <= 1) return undefined;
-    if (step === "coding") return codingIteration ?? totalIterations;
-    if (step === "reviewing") return reviewingIteration ?? totalIterations;
+    if (step === "coding" || step === "reviewing") return selectedIter ?? totalIterations;
     return undefined;
   };
 
   const getStepState = (step: string): "complete" | "active" | "failed" | "pending" => {
     const stepIdx = STEPS.indexOf(step as PipelineStep);
     const currentIdx = displayStep ? STEPS.indexOf(displayStep) : -1;
-    const selectedIter = getSelectedIteration(step as PipelineStep);
-    const isNonFinalIteration = (step === "coding" || step === "reviewing") && totalIterations > 1 && selectedIter != null && selectedIter < totalIterations;
+    const stepSelectedIter = getSelectedIteration(step as PipelineStep);
+    const isNonFinalIteration = (step === "coding" || step === "reviewing") && totalIterations > 1 && stepSelectedIter != null && stepSelectedIter < totalIterations;
     if (displayStatus === "success") return "complete";
     if (displayStatus === "failed" || displayStatus === "cancelled" || displayStatus === "rejected") {
       if (isNonFinalIteration) return "complete";
@@ -307,10 +558,10 @@ export default function PipelinePageShell({
     formatStepDuration,
     getStepLogCount: (step: string) => logs.filter((l) => l.step === step).length,
     totalIterations,
-    codingIteration,
-    reviewingIteration,
-    setCodingIteration,
-    setReviewingIteration,
+    codingIteration: selectedIter,
+    reviewingIteration: selectedIter,
+    setCodingIteration: setSyncedIteration,
+    setReviewingIteration: setSyncedIteration,
   };
 
   return (
@@ -318,11 +569,36 @@ export default function PipelinePageShell({
       <style>{`
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .fade-in-up { opacity: 0; animation: fadeInUp 500ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .glass-card-strong {
+          background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.015) 50%, rgba(255,255,255,0.04) 100%);
+          backdrop-filter: blur(40px);
+          -webkit-backdrop-filter: blur(40px);
+          border: 1px solid rgba(255,255,255,0.1);
+          box-shadow:
+            inset 0 1px 0 0 rgba(255,255,255,0.08),
+            inset 0 0 30px rgba(255,255,255,0.02),
+            0 12px 48px rgba(0,0,0,0.4),
+            0 4px 12px rgba(0,0,0,0.25);
+        }
+        .gradient-border-glow { position: relative; }
+        .gradient-border-glow::before {
+          content: '';
+          position: absolute;
+          inset: -1px;
+          border-radius: inherit;
+          padding: 1px;
+          background: linear-gradient(135deg, rgba(139,92,246,0.2), rgba(59,130,246,0.1), rgba(16,185,129,0.15));
+          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          pointer-events: none;
+        }
       `}</style>
 
       <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
         {/* Header */}
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/[0.04] bg-zinc-950/80 px-8 py-4 backdrop-blur-xl shrink-0">
+        <header className="sticky top-0 z-20 flex flex-wrap gap-3 items-center justify-between border-b border-white/[0.04] bg-zinc-950/80 px-4 md:px-8 py-4 backdrop-blur-xl shrink-0">
           <div className="flex items-center gap-4">
             <button onClick={() => router.push("/pipelines")} className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-600 transition-all duration-200 hover:bg-white/[0.04] hover:text-zinc-300">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>
@@ -330,7 +606,7 @@ export default function PipelinePageShell({
             <div className="flex items-center gap-3">
               <h1 className="text-sm font-medium text-zinc-300">Pipeline Run</h1>
               {designLabel && <span className="text-[10px] text-violet-400/80 bg-violet-500/10 border border-violet-500/15 px-1.5 py-0.5 rounded font-medium">{designLabel}</span>}
-              <span className="text-xs text-zinc-600 bg-white/[0.03] border border-white/[0.06] px-2 py-0.5 rounded" style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}>{runId.slice(0, 8)}</span>
+              <span className="text-xs text-zinc-600 bg-white/[0.03] border border-white/[0.06] px-2 py-0.5 rounded" style={{ fontFamily: MONO }}>{runId.slice(0, 8)}</span>
               <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${statusBadge.bg} ${statusBadge.text}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${statusBadge.dot}`} />
                 {displayStatus}
@@ -354,101 +630,58 @@ export default function PipelinePageShell({
           </div>
         </header>
 
-        {/* Info Cards */}
-        <div className="flex flex-col gap-4 px-8 py-6 shrink-0 fade-in-up" style={{ animationDelay: "80ms" }}>
-          {/* Metadata Card */}
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-xl p-6">
-            <div className={`flex ${displayScore != null ? "gap-8" : ""}`}>
-              {displayScore != null && (
-                <div className="flex flex-col items-center gap-2 shrink-0">
-                  <ScoreGauge score={displayScore} threshold={threshold} animated={gaugeAnimated} />
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${displayScore >= threshold ? "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20" : "bg-red-500/10 text-red-400 ring-1 ring-red-500/20"}`}>
-                      {displayScore >= threshold ? "PASSED" : "FAILED"}
-                    </span>
-                    <span className="text-[11px] text-zinc-600" style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}>threshold {threshold}</span>
-                  </div>
+        {/* Dashboard Widgets + Step Design */}
+        <div className="flex flex-col gap-4 px-4 md:px-8 py-6 shrink-0 fade-in-up" style={{ animationDelay: "80ms" }}>
+          {/* Score Card (v7 glass + semi-circle) + Widget Grid (v5) */}
+          <div className={`grid gap-4 ${displayScore != null ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-4" : "grid-cols-1 md:grid-cols-3"}`}>
+            {/* Score Widget — v7 glass card with semi-circle gauge */}
+            {displayScore != null && (
+              <div className="glass-card-strong gradient-border-glow rounded-2xl overflow-hidden flex flex-col items-center justify-center p-4">
+                <div className="relative flex justify-center">
+                  {/* Ambient glow behind gauge */}
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[300px] h-[160px] rounded-full opacity-20 blur-[60px]" style={{ background: displayScore >= threshold ? "radial-gradient(ellipse, #10b981 0%, transparent 70%)" : "radial-gradient(ellipse, #ef4444 0%, transparent 70%)" }} />
+                  <SemiCircleGauge score={displayScore} threshold={threshold} animated={gaugeAnimated} />
                 </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="grid grid-cols-3 gap-x-6 gap-y-4">
-                  <div>
-                    <div className="text-[11px] text-zinc-600 mb-1">Created</div>
-                    <div className="text-sm text-zinc-300 tabular-nums" style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}>{run ? formatTimestamp(run.createdAt) : "..."}</div>
-                  </div>
-                  <div>
-                    <div className="text-[11px] text-zinc-600 mb-1">Finished</div>
-                    <div className="text-sm text-zinc-300 tabular-nums" style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}>{run?.finishedAt ? formatTimestamp(run.finishedAt) : isActive ? "In progress" : "..."}</div>
-                  </div>
-                  <div>
-                    <div className="text-[11px] text-zinc-600 mb-1">Duration</div>
-                    <div className="text-sm text-zinc-300 tabular-nums" style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}>{run ? totalDuration(run.createdAt, run.finishedAt) : "..."}</div>
-                  </div>
-                  <div>
-                    <div className="text-[11px] text-zinc-600 mb-1">Branch</div>
-                    <div className="flex items-center gap-1.5">
-                      <svg className="h-3.5 w-3.5 text-cyan-500/70 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 103 3m-3-3a3 3 0 01-3 3m12-9a3 3 0 100-6 3 3 0 000 6zm0 0v3a3 3 0 01-3 3H9" /></svg>
-                      <span className="text-sm text-cyan-400/80 truncate" style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}>{run?.worktreeBranch ?? "..."}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[11px] text-zinc-600 mb-1">Iterations</div>
-                    <div className="flex items-center gap-1.5">
-                      <svg className="h-3.5 w-3.5 text-violet-400/70 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M20.993 4.356v4.992" /></svg>
-                      <span className="text-sm text-zinc-300 tabular-nums" style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}>{totalIterations} / {totalAttempts}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[11px] text-zinc-600 mb-1">Specification</div>
-                    <div className="flex items-center gap-1.5">
-                      <svg className="h-3.5 w-3.5 text-violet-400/70 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
-                      {specInfo && run ? (
-                        <Link href={`/specifications/${run.specificationId}`} className="text-sm text-violet-400/80 hover:text-violet-300 truncate transition-colors" style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }} title={`${specInfo.title} (v${specInfo.versionNumber})`}>{specInfo.title} v{specInfo.versionNumber}</Link>
-                      ) : (
-                        <span className="text-sm text-zinc-500" style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}>{specInfoLoading ? "..." : "Unknown"}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold tracking-wide mt-1 ${displayScore >= threshold ? "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20" : "bg-red-500/10 text-red-400 ring-1 ring-red-500/20"}`}>
+                  {displayScore >= threshold ? (
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                  ) : (
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                  )}
+                  {displayScore >= threshold ? "PASSED" : "FAILED"}
+                  <span className="text-zinc-600 font-normal ml-1" style={{ fontFamily: MONO }}>{totalIterations > 1 ? `iter ${effectiveReviewIter}` : `thr ${threshold}`}</span>
+                </span>
               </div>
-            </div>
+            )}
+
+            {/* Timing Widget (v5) */}
+            <TimingWidget run={run} isActive={isActive} />
+
+            {/* Config Widget (v5) */}
+            <ConfigWidget run={run} totalIterations={totalIterations} totalAttempts={totalAttempts} specInfo={specInfo} specInfoLoading={specInfoLoading} />
+
+            {/* Status Widget (v5) */}
+            <StatusWidget status={displayStatus} />
           </div>
 
           {/* Step Design — swappable */}
           <StepDesignComponent {...stepDesignProps} />
         </div>
 
-        {/* Review Issues Bar */}
+        {/* Review Issues Table (v8) */}
         {activeTab === "reviewing" && reviewIssues && reviewIssues.length > 0 && (
-          <div className="mx-8 mb-4 shrink-0 fade-in-up">
-            <div className="rounded-xl border border-amber-500/10 bg-amber-500/[0.03] px-5 py-4">
-              <div className="flex items-start gap-3">
-                <svg className="w-4 h-4 text-amber-500/60 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
-                <div className="flex-1 min-w-0">
-                  {reviewSummary && <p className="text-xs text-zinc-400 mb-2.5 leading-relaxed">{reviewSummary}</p>}
-                  <div className="flex flex-wrap gap-2">
-                    {reviewIssues.map((issue, i) => (
-                      <span key={i} className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.04] bg-white/[0.02] px-3 py-1.5 text-[11px] text-zinc-400">
-                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-[9px] font-medium text-amber-400">{i + 1}</span>
-                        {issue}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ReviewIssuesTable summary={reviewSummary} issues={reviewIssues} />
         )}
 
         {/* Error Message */}
         {run?.errorMessage && (displayStatus === "failed" || displayStatus === "rejected") && (
-          <div className="mx-8 mb-4 rounded-xl border border-red-800/50 bg-red-950/30 px-5 py-3 shrink-0">
+          <div className="mx-4 md:mx-8 mb-4 rounded-xl border border-red-800/50 bg-red-950/30 px-5 py-3 shrink-0">
             <p className="text-sm text-red-400">{run.errorMessage}</p>
           </div>
         )}
 
         {/* Log Viewer */}
-        <div className="flex flex-1 flex-col overflow-hidden mx-8 mb-6 rounded-xl border border-white/[0.06] bg-white/[0.02] fade-in-up" style={{ animationDelay: "200ms" }}>
+        <div className="flex flex-1 flex-col overflow-hidden mx-4 md:mx-8 mb-6 rounded-xl border border-white/[0.06] bg-white/[0.02] fade-in-up" style={{ animationDelay: "200ms" }}>
           <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2.5 shrink-0">
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5">
@@ -456,11 +689,11 @@ export default function PipelinePageShell({
                 <div className="h-3 w-3 rounded-full bg-yellow-500/80" />
                 <div className="h-3 w-3 rounded-full bg-green-500/80" />
               </div>
-              <span className="ml-2 text-[11px] text-zinc-600" style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}>
-                {activeTab}{getSelectedIteration(activeTab) != null ? ` (iteration ${getSelectedIteration(activeTab)})` : ""}{activeTabTiming ? ` — ${formatStepDuration(activeTabTiming.startedAt, activeTabTiming.endedAt)}` : ""}
+              <span className="ml-2 text-[11px] text-zinc-600" style={{ fontFamily: MONO }}>
+                {activeTab}{getSelectedIteration(activeTab) != null ? ` (iteration ${getSelectedIteration(activeTab)})` : ""}{activeTabTiming ? ` \u2014 ${formatStepDuration(activeTabTiming.startedAt, activeTabTiming.endedAt)}` : ""}
               </span>
             </div>
-            <span className="text-[10px] text-zinc-700 tabular-nums" style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}>{logs.filter((l) => l.step === activeTab).length} lines</span>
+            <span className="text-[10px] text-zinc-700 tabular-nums" style={{ fontFamily: MONO }}>{logs.filter((l) => l.step === activeTab).length} lines</span>
           </div>
           <StepLogViewer logs={logs} step={activeTab} selectedIteration={getSelectedIteration(activeTab)} />
         </div>

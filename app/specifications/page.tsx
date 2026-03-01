@@ -85,37 +85,6 @@ function relativeTime(dateStr: string): string {
 }
 
 // =============================================================================
-// Animated counter hook
-// =============================================================================
-
-function useAnimatedNumber(target: number, duration = 1200) {
-  const [value, setValue] = useState(0);
-  const startTime = useRef<number | null>(null);
-  const startValue = useRef(0);
-  const rafRef = useRef<number>(0);
-
-  useEffect(() => {
-    startValue.current = value;
-    startTime.current = null;
-
-    const animate = (timestamp: number) => {
-      if (!startTime.current) startTime.current = timestamp;
-      const elapsed = timestamp - startTime.current;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(Math.round(startValue.current + (target - startValue.current) * eased));
-      if (progress < 1) rafRef.current = requestAnimationFrame(animate);
-    };
-
-    rafRef.current = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(rafRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, duration]);
-
-  return value;
-}
-
-// =============================================================================
 // Icons
 // =============================================================================
 
@@ -158,72 +127,19 @@ function IconTrash({ className = "w-3.5 h-3.5" }: { className?: string }) {
   );
 }
 
-function IconDoc({ className = "w-5 h-5" }: { className?: string }) {
+function IconFilter({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
     </svg>
   );
 }
 
-function IconCheck({ className = "w-5 h-5" }: { className?: string }) {
+function IconChevronDown({ className = "w-4 h-4" }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
     </svg>
-  );
-}
-
-function IconPipeline({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-    </svg>
-  );
-}
-
-function IconEdit({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-    </svg>
-  );
-}
-
-// =============================================================================
-// Stat card
-// =============================================================================
-
-function StatCard({
-  label,
-  value,
-  icon,
-  accentColor,
-  delay,
-}: {
-  label: string;
-  value: number;
-  icon: React.ReactNode;
-  accentColor: string;
-  delay: number;
-}) {
-  const animatedValue = useAnimatedNumber(value, 1400);
-
-  return (
-    <div
-      className="group relative backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 overflow-hidden transition-all duration-300 hover:bg-white/[0.05] animate-fade-in-up"
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div className={`p-2 rounded-lg bg-white/[0.04] ${accentColor}`}>
-          {icon}
-        </div>
-      </div>
-      <div className="text-2xl font-bold text-zinc-100 tabular-nums tracking-tight">
-        {animatedValue}
-      </div>
-      <div className="text-[12px] text-zinc-500 mt-0.5">{label}</div>
-    </div>
   );
 }
 
@@ -399,11 +315,14 @@ export default function SpecificationsPage() {
   const { specifications, loaded, getLatestVersion, deleteSpecification } = useSpecificationStore(activeProjectId);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<Set<DisplayGroup>>(new Set());
+  const [filterOpen, setFilterOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<DisplayGroup>>(new Set());
   const [activeGroup, setActiveGroup] = useState<DisplayGroup | null>("pipeline");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const filterRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -424,6 +343,28 @@ export default function SpecificationsPage() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+
+  // Close filter dropdown on outside click
+  useEffect(() => {
+    if (!filterOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [filterOpen]);
+
+  // Close filter dropdown on Escape
+  useEffect(() => {
+    if (!filterOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFilterOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [filterOpen]);
 
   // IntersectionObserver for active TOC group
   useEffect(() => {
@@ -466,14 +407,22 @@ export default function SpecificationsPage() {
     return map;
   }, [filteredSpecs]);
 
-  // Stats
-  const stats = useMemo(() => {
-    const total = specifications.length;
-    const inPipeline = specifications.filter((s) => s.status === "pipeline").length;
-    const done = specifications.filter((s) => s.status === "done").length;
-    const drafts = specifications.filter((s) => s.status === "draft").length;
-    return { total, inPipeline, done, drafts };
-  }, [specifications]);
+  // Check if any specs are visible after both filters
+  const hasVisibleSpecs = useMemo(() => {
+    return STATUS_ORDER.some((group) => {
+      if (statusFilter.size > 0 && !statusFilter.has(group)) return false;
+      return groupedSpecs[group].length > 0;
+    });
+  }, [groupedSpecs, statusFilter]);
+
+  const toggleStatusFilter = useCallback((group: DisplayGroup) => {
+    setStatusFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  }, []);
 
   const toggleGroup = useCallback((group: DisplayGroup) => {
     setCollapsedGroups((prev) => {
@@ -497,10 +446,12 @@ export default function SpecificationsPage() {
     }
   }, []);
 
-  const tocGroups = STATUS_ORDER.map((group) => ({
-    group,
-    count: groupedSpecs[group].length,
-  }));
+  const tocGroups = STATUS_ORDER
+    .filter((group) => statusFilter.size === 0 || statusFilter.has(group))
+    .map((group) => ({
+      group,
+      count: groupedSpecs[group].length,
+    }));
 
   return (
     <div className={`h-full bg-zinc-950 text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
@@ -551,53 +502,87 @@ export default function SpecificationsPage() {
             </div>
           ) : (
             <>
-              {/* Stat cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-                <StatCard
-                  label="Total Specs"
-                  value={stats.total}
-                  icon={<IconDoc />}
-                  accentColor="text-indigo-400"
-                  delay={100}
-                />
-                <StatCard
-                  label="In Pipeline"
-                  value={stats.inPipeline}
-                  icon={<IconPipeline />}
-                  accentColor="text-violet-400"
-                  delay={180}
-                />
-                <StatCard
-                  label="Done"
-                  value={stats.done}
-                  icon={<IconCheck />}
-                  accentColor="text-emerald-400"
-                  delay={260}
-                />
-                <StatCard
-                  label="Drafts"
-                  value={stats.drafts}
-                  icon={<IconEdit />}
-                  accentColor="text-amber-400"
-                  delay={340}
-                />
-              </div>
+              {/* Search bar + status filter */}
+              <div className="relative z-10 mb-5 animate-fade-in-up" style={{ animationDelay: "200ms" }}>
+                <div className="flex items-center gap-2">
+                  <div className="search-glow relative flex-1 flex items-center backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl transition-all duration-300">
+                    <IconSearch className="w-4 h-4 text-zinc-500 ml-4 shrink-0" />
+                    <input
+                      ref={searchRef}
+                      type="text"
+                      placeholder="Search specifications..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="flex-1 bg-transparent text-[13px] text-zinc-200 placeholder:text-zinc-600 py-3 px-3 outline-none"
+                    />
+                    <kbd className="hidden sm:inline-flex items-center gap-0.5 text-[10px] text-zinc-500 bg-white/[0.05] border border-white/[0.08] px-1.5 py-0.5 rounded-md mr-3 font-mono">
+                      <span className="text-[11px]">&#8984;</span>K
+                    </kbd>
+                  </div>
 
-              {/* Search bar */}
-              <div className="mb-5 animate-fade-in-up" style={{ animationDelay: "200ms" }}>
-                <div className="search-glow relative flex items-center backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl transition-all duration-300">
-                  <IconSearch className="w-4 h-4 text-zinc-500 ml-4 shrink-0" />
-                  <input
-                    ref={searchRef}
-                    type="text"
-                    placeholder="Search specifications..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent text-[13px] text-zinc-200 placeholder:text-zinc-600 py-3 px-3 outline-none"
-                  />
-                  <kbd className="hidden sm:inline-flex items-center gap-0.5 text-[10px] text-zinc-500 bg-white/[0.05] border border-white/[0.08] px-1.5 py-0.5 rounded-md mr-3 font-mono">
-                    <span className="text-[11px]">&#8984;</span>K
-                  </kbd>
+                  {/* Status filter dropdown */}
+                  <div ref={filterRef} className="relative">
+                    <button
+                      onClick={() => setFilterOpen(!filterOpen)}
+                      className={`inline-flex items-center gap-2 px-3.5 py-2.5 text-[13px] font-medium backdrop-blur-xl border rounded-xl transition-all duration-200 whitespace-nowrap ${
+                        statusFilter.size > 0
+                          ? "bg-violet-500/10 border-violet-500/20 text-violet-300 hover:bg-violet-500/15"
+                          : "bg-white/[0.03] border-white/[0.06] text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-300"
+                      }`}
+                    >
+                      <IconFilter className="w-4 h-4" />
+                      <span>Status</span>
+                      {statusFilter.size > 0 && (
+                        <span className="inline-flex items-center justify-center w-5 h-5 text-[11px] font-bold bg-violet-500 text-white rounded-full">
+                          {statusFilter.size}
+                        </span>
+                      )}
+                      <IconChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${filterOpen ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {filterOpen && (
+                      <div className="absolute right-0 top-full mt-2 w-52 z-50 backdrop-blur-xl bg-zinc-900/95 border border-white/[0.08] rounded-xl shadow-xl shadow-black/30 p-2">
+                        <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-2 py-1.5 mb-1">
+                          Filter by status
+                        </div>
+                        {STATUS_ORDER.map((group) => {
+                          const cfg = GROUP_CONFIG[group];
+                          const isSelected = statusFilter.has(group);
+                          return (
+                            <button
+                              key={group}
+                              onClick={() => toggleStatusFilter(group)}
+                              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150 ${
+                                isSelected
+                                  ? "bg-white/[0.06]"
+                                  : "hover:bg-white/[0.03]"
+                              }`}
+                            >
+                              <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+                              <span className={`text-[13px] flex-1 text-left ${isSelected ? "text-zinc-100 font-medium" : "text-zinc-400"}`}>
+                                {cfg.label}
+                              </span>
+                              {isSelected && (
+                                <svg className="w-4 h-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                </svg>
+                              )}
+                            </button>
+                          );
+                        })}
+                        {statusFilter.size > 0 && (
+                          <div className="border-t border-white/[0.06] mt-1.5 pt-1.5">
+                            <button
+                              onClick={() => setStatusFilter(new Set())}
+                              className="w-full text-[12px] text-zinc-500 hover:text-zinc-300 py-1.5 px-2.5 rounded-lg hover:bg-white/[0.03] transition-colors text-left"
+                            >
+                              Clear filters
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -606,6 +591,7 @@ export default function SpecificationsPage() {
                 {/* Main spec list */}
                 <div className="flex-1 min-w-0">
                   {STATUS_ORDER.map((group) => {
+                    if (statusFilter.size > 0 && !statusFilter.has(group)) return null;
                     const specs = groupedSpecs[group];
                     if (specs.length === 0) return null;
                     const cfg = GROUP_CONFIG[group];
@@ -663,12 +649,14 @@ export default function SpecificationsPage() {
                     );
                   })}
 
-                  {/* Empty search state */}
-                  {filteredSpecs.length === 0 && (
+                  {/* Empty search/filter state */}
+                  {!hasVisibleSpecs && (
                     <div className="flex flex-col items-center justify-center py-20 text-center">
                       <IconSearch className="w-8 h-8 text-zinc-600 mb-3" />
                       <p className="text-zinc-400 text-[14px]">No specifications found</p>
-                      <p className="text-zinc-600 text-[12px] mt-1">Try adjusting your search query</p>
+                      <p className="text-zinc-600 text-[12px] mt-1">
+                        {statusFilter.size > 0 ? "Try adjusting your filters" : "Try adjusting your search query"}
+                      </p>
                     </div>
                   )}
                 </div>
