@@ -2,7 +2,7 @@
 
 A web UI for managing AI-powered coding pipelines. Write specifications, run automated code-review-retry loops with Claude, and track everything in a dashboard.
 
-Built with Next.js, Supabase, and [node-claude-sdk](https://github.com/YOUR_USER/node-claude-sdk).
+Built with Next.js, Supabase, and [node-claude-sdk](https://github.com/cellexec/node-claude-sdk).
 
 ## Features
 
@@ -24,8 +24,8 @@ Built with Next.js, Supabase, and [node-claude-sdk](https://github.com/YOUR_USER
 
 ```bash
 # Clone both repos side by side
-git clone git@github.com:YOUR_USER/renlab.git
-git clone git@github.com:YOUR_USER/node-claude-sdk.git
+git clone git@github.com:cellexec/renlab.git
+git clone git@github.com:cellexec/node-claude-sdk.git
 
 # Install SDK
 cd node-claude-sdk && npm install && npm run build && cd ..
