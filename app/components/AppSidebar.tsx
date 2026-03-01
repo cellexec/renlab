@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -116,20 +116,11 @@ function NavTooltip({ label, children }: { label: string; children: React.ReactN
 // ── Brand header ────────────────────────────────────────────────────────────
 
 function BrandHeader({ collapsed }: { collapsed: boolean }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
+  const [infoHover, setInfoHover] = useState(false);
+  const infoRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div ref={ref} className={`relative flex items-center gap-2 py-3 border-b border-white/[0.06] ${collapsed ? "justify-center px-0" : "px-1"}`}>
+    <div className={`relative flex items-center gap-2 py-3 border-b border-white/[0.06] ${collapsed ? "justify-center px-0" : "px-1"}`}>
       <div className="shrink-0 overflow-hidden rounded-xl h-12 w-12 flex items-center justify-center">
         <Image
           src="/renlab_logo.png"
@@ -144,26 +135,37 @@ function BrandHeader({ collapsed }: { collapsed: boolean }) {
           <span className="text-sm font-semibold text-zinc-100 tracking-tight">
             RenLab
           </span>
+          <div
+            ref={infoRef}
+            className="relative"
+            onMouseEnter={() => setInfoHover(true)}
+            onMouseLeave={() => setInfoHover(false)}
+          >
+            <div className="p-1 rounded-md text-zinc-600 hover:text-zinc-400 transition-colors cursor-default">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+              </svg>
+            </div>
+            {infoHover && (
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 w-52 backdrop-blur-xl bg-zinc-900/95 border border-white/[0.08] rounded-xl p-3.5 shadow-xl shadow-black/40">
+                <p className="text-[13px] font-semibold text-zinc-100 mb-1.5">
+                  Ren <span className="text-zinc-500 font-normal">(</span><span className="text-violet-400">&#x70BC;</span><span className="text-zinc-500 font-normal">)</span>
+                </p>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Chinese for <span className="text-zinc-300">to refine, to forge</span>. Specs go in, polished code comes out &mdash; refined through AI-powered review loops.
+                </p>
+              </div>
+            )}
+          </div>
           <button
-            onClick={() => setOpen(!open)}
             className="ml-auto p-1 rounded-md text-zinc-600 hover:text-zinc-400 hover:bg-white/[0.04] transition-colors"
+            title="Notifications"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
             </svg>
           </button>
         </>
-      )}
-
-      {open && !collapsed && (
-        <div className="absolute left-3 top-full mt-1 z-50 w-[calc(100%-1.5rem)] backdrop-blur-xl bg-zinc-900/95 border border-white/[0.08] rounded-xl p-3.5 shadow-xl shadow-black/40 animate-fade-in-up">
-          <p className="text-[13px] font-semibold text-zinc-100 mb-1.5">
-            Ren <span className="text-zinc-500 font-normal">(</span><span className="text-violet-400">&#x70BC;</span><span className="text-zinc-500 font-normal">)</span>
-          </p>
-          <p className="text-[11px] text-zinc-400 leading-relaxed">
-            Chinese for <span className="text-zinc-300">to refine, to forge</span>. Specs go in, polished code comes out &mdash; refined through AI-powered review loops.
-          </p>
-        </div>
       )}
     </div>
   );
@@ -230,7 +232,7 @@ export function AppSidebar() {
         {activeProject && (
           <>
             {!collapsed && (
-              <p className="mb-1 px-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-600">
+              <p className="mt-3 mb-1 px-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-600">
                 Project
               </p>
             )}
