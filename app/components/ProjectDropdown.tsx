@@ -28,7 +28,7 @@ export function ProjectDropdown({ projects, activeProject, onSelect, onDelete, c
 
   if (collapsed) {
     return (
-      <div className="flex justify-center px-1.5 pb-2">
+      <div className="flex justify-center px-1.5 pb-0">
         <div
           className="rounded-md p-2 text-zinc-500"
           title={activeProject ? activeProject.title : "No project"}
@@ -42,7 +42,7 @@ export function ProjectDropdown({ projects, activeProject, onSelect, onDelete, c
   }
 
   return (
-    <div ref={ref} className="relative px-3 pb-2">
+    <div ref={ref} className="relative px-3 pb-0">
       <div className="flex items-center gap-1">
         <button
           onClick={() => setOpen(!open)}
