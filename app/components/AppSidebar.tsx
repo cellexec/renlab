@@ -129,7 +129,7 @@ function BrandHeader({ collapsed }: { collapsed: boolean }) {
   }, [open]);
 
   return (
-    <div ref={ref} className={`relative flex items-center gap-2 py-0 ${collapsed ? "justify-center px-0" : "px-1"}`}>
+    <div ref={ref} className={`relative flex items-center gap-2 py-3 border-b border-white/[0.06] ${collapsed ? "justify-center px-0" : "px-1"}`}>
       <div className="shrink-0 overflow-hidden rounded-xl h-12 w-12 flex items-center justify-center">
         <Image
           src="/renlab_logo.png"
@@ -216,19 +216,21 @@ export function AppSidebar() {
     >
       <BrandHeader collapsed={collapsed} />
 
-      <ProjectDropdown
-        projects={projects}
-        activeProject={activeProject}
-        onSelect={setActiveProjectId}
-        onDelete={deleteProject}
-        collapsed={collapsed}
-      />
+      <div className="py-3 border-b border-white/[0.06]">
+        <ProjectDropdown
+          projects={projects}
+          activeProject={activeProject}
+          onSelect={setActiveProjectId}
+          onDelete={deleteProject}
+          collapsed={collapsed}
+        />
+      </div>
 
       <nav className={`flex flex-1 flex-col ${collapsed ? "px-1.5" : "px-3"}`}>
         {activeProject && (
           <>
             {!collapsed && (
-              <p className="mb-1 mt-2 px-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-600">
+              <p className="mb-1 px-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-600">
                 Project
               </p>
             )}
@@ -247,11 +249,11 @@ export function AppSidebar() {
         )}
 
         {!collapsed && (
-          <p className={`mb-1 px-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-600 ${activeProject ? "" : "mt-2"}`}>
+          <p className="mb-1 px-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-600">
             Global
           </p>
         )}
-        <div className={`flex flex-col gap-0.5 ${collapsed && !activeProject ? "mt-2" : ""}`}>
+        <div className="flex flex-col gap-0.5">
           {globalNavItems.map((item) => {
             const active = pathname.startsWith(item.href);
             return renderNavItem(item, active);
