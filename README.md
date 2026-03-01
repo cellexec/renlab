@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RenLab
 
-## Getting Started
+A web UI for managing AI-powered coding pipelines. Write specifications, run automated code-review-retry loops with Claude, and track everything in a dashboard.
 
-First, run the development server:
+Built with Next.js, Supabase, and [node-claude-sdk](https://github.com/YOUR_USER/node-claude-sdk).
+
+## Features
+
+- **Projects** — manage multiple codebases
+- **Specifications** — define what you want built in natural language
+- **Pipelines** — automated coding + review loop (worktree isolation, retry on low scores, auto-merge on pass)
+- **Chat** — interactive Claude sessions scoped to a project
+- **Usage** — view Claude Code usage stats
+
+## Setup
+
+### Prerequisites
+
+- Node.js 18+
+- [Supabase CLI](https://supabase.com/docs/guides/cli) (for local dev)
+- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
+
+### Install
+
+```bash
+# Clone both repos side by side
+git clone git@github.com:YOUR_USER/renlab.git
+git clone git@github.com:YOUR_USER/node-claude-sdk.git
+
+# Install SDK
+cd node-claude-sdk && npm install && npm run build && cd ..
+
+# Install RenLab
+cd renlab && npm install
+```
+
+### Database
+
+```bash
+supabase start
+```
+
+Migrations run automatically. See `supabase/migrations/` for the schema.
+
+### Environment
+
+```bash
+cp .env.example .env.local
+# Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
+```
+
+### Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+app/
+  api/          API routes (chat, pipelines, usage)
+  pipelines/    Pipeline dashboard and detail views
+  specifications/  Spec editor and listing
+  projects/     Project management
+  chat/         Chat interface
+  components/   Shared UI components
+  lib/          Core logic (pipeline manager, supabase client)
+supabase/
+  migrations/   Database migrations
+  config.toml   Supabase local config
+```
 
-## Learn More
+## License
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT

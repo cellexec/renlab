@@ -1,4 +1,4 @@
-import { stream } from "claude-agent-sdk";
+import { stream } from "node-claude-sdk";
 import { randomUUID } from "crypto";
 import { getSupabase } from "../../lib/supabase";
 

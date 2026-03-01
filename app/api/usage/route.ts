@@ -1,4 +1,4 @@
-import { getUsage } from "claude-agent-sdk";
+import { getUsage } from "node-claude-sdk";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";

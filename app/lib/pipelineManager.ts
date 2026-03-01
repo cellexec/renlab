@@ -1,5 +1,5 @@
 import { spawn } from "child_process";
-import { stream } from "claude-agent-sdk";
+import { stream } from "node-claude-sdk";
 import { getSupabase } from "./supabase";
 import type {
   PipelineStatus,
@@ -160,17 +160,17 @@ function formatToolDetail(name: string, input: Record<string, unknown>): string 
 }
 
 async function consumeAgentStream(
-  agentStream: AsyncIterable<import("claude-agent-sdk").StreamMessage>,
+  agentStream: AsyncIterable<import("node-claude-sdk").StreamMessage>,
   runId: string,
   step: PipelineStep,
   signal?: AbortSignal,
-): Promise<{ resultMessage: import("claude-agent-sdk").ResultMessage | null; resultText: string }> {
+): Promise<{ resultMessage: import("node-claude-sdk").ResultMessage | null; resultText: string }> {
   let textBuffer = "";
   let currentToolName: string | null = null;
   let toolInputJson = "";
   let toolCallCounter = 0;
   let thinkingCounter = 0;
-  let resultMessage: import("claude-agent-sdk").ResultMessage | null = null;
+  let resultMessage: import("node-claude-sdk").ResultMessage | null = null;
   let resultText = "";
 
   function flushText() {
