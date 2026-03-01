@@ -46,8 +46,9 @@ Migrations run automatically. See `supabase/migrations/` for the schema.
 
 ```bash
 cp .env.example .env.local
-# Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
 ```
+
+For local Supabase, get your anon key from `npx supabase status` and update `.env.local`.
 
 ### Run
 
