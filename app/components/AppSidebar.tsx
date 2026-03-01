@@ -10,7 +10,7 @@ import { useSidebarState } from "../hooks/useSidebarState";
 
 const projectNavItems = [
   {
-    label: "Home",
+    label: "Dashboard",
     href: "/",
     icon: (
       <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
