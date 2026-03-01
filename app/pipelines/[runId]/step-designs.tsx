@@ -2580,6 +2580,7 @@ export function StepDesign18(props: StepDesignProps) {
                           ${isActiveIter && isSelected
                             ? "bg-white/[0.06] ring-1 ring-white/[0.1]"
                             : "bg-white/[0.02] hover:bg-white/[0.04]"}
+                          ${showIter && !isActiveIter ? "opacity-40" : ""}
                         `}
                       >
                         {/* Left connection dot */}

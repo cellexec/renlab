@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useProjectContext } from "./ProjectContext";
@@ -128,9 +129,15 @@ function BrandHeader({ collapsed }: { collapsed: boolean }) {
   }, [open]);
 
   return (
-    <div ref={ref} className={`relative flex items-center gap-2 py-5 ${collapsed ? "justify-center px-0" : "px-5"}`}>
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-violet-600 text-xs font-bold text-white">
-        R
+    <div ref={ref} className={`relative flex items-center gap-2 py-0 ${collapsed ? "justify-center px-0" : "px-1"}`}>
+      <div className="shrink-0 overflow-hidden rounded-xl h-12 w-12 flex items-center justify-center">
+        <Image
+          src="/renlab_logo.png"
+          alt="RenLab"
+          width={72}
+          height={72}
+          className="h-[72px] w-[72px] object-cover"
+        />
       </div>
       {!collapsed && (
         <>
