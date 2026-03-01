@@ -8,6 +8,8 @@ interface MarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** When true, forces preview-only mode — hides write/split tabs and toolbar */
+  viewOnly?: boolean;
 }
 
 type Tab = "write" | "preview" | "split";
@@ -563,9 +565,12 @@ export function MarkdownEditor({
   value,
   onChange,
   placeholder,
+  viewOnly = false,
 }: MarkdownEditorProps) {
   const [tab, setTab] = useState<Tab>("split");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const effectiveTab = viewOnly ? "preview" : tab;
 
   const handleToolbar = useCallback(
     (btn: ToolbarButton) => {
@@ -587,11 +592,12 @@ export function MarkdownEditor({
     [value, onChange]
   );
 
-  const showEditor = tab === "write" || tab === "split";
+  const showEditor = !viewOnly && (effectiveTab === "write" || effectiveTab === "split");
 
   return (
     <div className="flex flex-1 flex-col rounded-lg border border-zinc-700 bg-zinc-800 overflow-hidden">
-      {/* Toolbar row */}
+      {/* Toolbar row — hidden in viewOnly mode */}
+      {!viewOnly && (
       <div className="flex items-center border-b border-zinc-700 px-1 py-1">
         {/* Format buttons -- left side */}
         {showEditor && (
@@ -628,7 +634,7 @@ export function MarkdownEditor({
               type="button"
               onClick={() => setTab(t)}
               className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-                tab === t
+                effectiveTab === t
                   ? "bg-zinc-700 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
@@ -638,11 +644,12 @@ export function MarkdownEditor({
           ))}
         </div>
       </div>
+      )}
 
       {/* Editor / Preview */}
       <div
         className={`flex flex-1 min-h-0 ${
-          tab === "split" ? "divide-x divide-zinc-700" : ""
+          effectiveTab === "split" ? "divide-x divide-zinc-700" : ""
         }`}
       >
         {showEditor && (
@@ -652,14 +659,14 @@ export function MarkdownEditor({
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             className={`${
-              tab === "split" ? "w-1/2" : "w-full"
+              effectiveTab === "split" ? "w-1/2" : "w-full"
             } resize-none bg-transparent px-4 py-3 text-sm text-zinc-100 outline-none font-mono leading-relaxed placeholder:text-zinc-600`}
           />
         )}
-        {(tab === "preview" || tab === "split") && (
+        {(effectiveTab === "preview" || effectiveTab === "split") && (
           <div
             className={`${
-              tab === "split" ? "w-1/2" : "w-full"
+              effectiveTab === "split" ? "w-1/2" : "w-full"
             } overflow-y-auto px-6 py-4`}
           >
             {value ? (
