@@ -26,6 +26,14 @@ const projectNavItems = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
       </svg>
     ),
+    action: {
+      href: "/specifications/new",
+      icon: (
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+      ),
+    },
   },
   {
     label: "Dev Server",
@@ -177,14 +185,14 @@ export function AppSidebar() {
   const { collapsed, toggle, sidebarWidth, isDragging, onDragStart, hydrated } = useSidebarState();
 
   const renderNavItem = (
-    item: { label: string; href: string; icon: React.ReactNode },
+    item: { label: string; href: string; icon: React.ReactNode; action?: { href: string; icon: React.ReactNode } },
     active: boolean,
   ) => {
     const link = (
       <Link
         href={item.href}
         className={`flex items-center rounded-md px-2.5 py-2 text-sm transition-colors ${
-          collapsed ? "justify-center" : "gap-3"
+          collapsed ? "justify-center" : "gap-3 min-w-0 flex-1"
         } ${
           active
             ? "bg-white/[0.06] text-zinc-100"
@@ -201,6 +209,20 @@ export function AppSidebar() {
         <NavTooltip key={item.href} label={item.label}>
           {link}
         </NavTooltip>
+      );
+    }
+
+    if (item.action) {
+      return (
+        <div key={item.href} className="flex items-center">
+          {link}
+          <Link
+            href={item.action.href}
+            className="shrink-0 ml-0.5 p-1.5 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.06] transition-colors"
+          >
+            {item.action.icon}
+          </Link>
+        </div>
       );
     }
 
