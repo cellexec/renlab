@@ -1,15 +1,17 @@
 export type PipelineStatus =
   | "pending"
   | "worktree"
+  | "retrieving"
   | "coding"
   | "reviewing"
   | "merging"
+  | "updating"
   | "success"
   | "failed"
   | "cancelled"
   | "rejected";
 
-export type PipelineStep = "worktree" | "coding" | "reviewing" | "merging";
+export type PipelineStep = "worktree" | "retrieving" | "coding" | "reviewing" | "merging" | "updating";
 
 export interface PipelineRun {
   id: string;
@@ -29,6 +31,8 @@ export interface PipelineRun {
   iterations: number;
   /** Max retries configured at pipeline start */
   maxRetries: number;
+  /** Whether knowledge base was available during this run */
+  hasKnowledge: boolean;
 }
 
 export interface PipelineLogEntry {

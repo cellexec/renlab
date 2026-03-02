@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import type { PipelineStatus, PipelineStep, StepTimings } from "../pipelines";
 
-const STEPS: { key: PipelineStep; label: string }[] = [
+const ALL_STEPS: { key: PipelineStep; label: string }[] = [
   { key: "worktree", label: "Worktree" },
+  { key: "retrieving", label: "Retrieving" },
   { key: "coding", label: "Coding" },
   { key: "reviewing", label: "Reviewing" },
   { key: "merging", label: "Merging" },
+  { key: "updating", label: "Updating" },
 ];
 
 interface PipelineStepsProps {
@@ -16,14 +18,16 @@ interface PipelineStepsProps {
   stepTimings?: StepTimings;
   iteration?: number;
   maxRetries?: number;
+  hasKnowledge?: boolean;
 }
 
 function getStepState(
   stepKey: PipelineStep,
   status: PipelineStatus,
-  currentStep: PipelineStep | null
+  currentStep: PipelineStep | null,
+  steps: { key: PipelineStep; label: string }[],
 ): "pending" | "active" | "complete" | "failed" {
-  const stepOrder = STEPS.map((s) => s.key);
+  const stepOrder = steps.map((s) => s.key);
   const stepIdx = stepOrder.indexOf(stepKey);
   const currentIdx = currentStep ? stepOrder.indexOf(currentStep) : -1;
 
@@ -72,9 +76,14 @@ const STATE_COLORS: Record<string, string> = {
   pending: "text-zinc-600",
 };
 
-export function PipelineSteps({ status, currentStep, stepTimings, iteration = 1, maxRetries = 0 }: PipelineStepsProps) {
+export function PipelineSteps({ status, currentStep, stepTimings, iteration = 1, maxRetries = 0, hasKnowledge = false }: PipelineStepsProps) {
   const [, setTick] = useState(0);
   const totalAttempts = maxRetries + 1;
+
+  // Filter steps based on whether knowledge base exists
+  const STEPS = hasKnowledge
+    ? ALL_STEPS
+    : ALL_STEPS.filter((s) => s.key !== "retrieving" && s.key !== "updating");
 
   // Tick every second while there's an active step with timing
   useEffect(() => {
@@ -87,7 +96,7 @@ export function PipelineSteps({ status, currentStep, stepTimings, iteration = 1,
   return (
     <div className="flex items-center gap-2">
       {STEPS.map((step, i) => {
-        const state = getStepState(step.key, status, currentStep);
+        const state = getStepState(step.key, status, currentStep, STEPS);
         const timingKey = stepTimings ? getStepTimingKey(step.key, stepTimings) : step.key;
         const timing = stepTimings?.[timingKey];
         const color = STATE_COLORS[state];

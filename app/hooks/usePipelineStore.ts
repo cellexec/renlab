@@ -21,10 +21,11 @@ function toRun(row: Record<string, unknown>): PipelineRun {
     finishedAt: (row.finished_at as string) ?? null,
     iterations: (row.iterations as number) ?? 1,
     maxRetries: (row.max_retries as number) ?? 0,
+    hasKnowledge: (row.has_knowledge as boolean) ?? false,
   };
 }
 
-const ACTIVE_STATUSES: PipelineStatus[] = ["pending", "worktree", "coding", "reviewing", "merging"];
+const ACTIVE_STATUSES: PipelineStatus[] = ["pending", "worktree", "retrieving", "coding", "reviewing", "merging", "updating"];
 
 export function usePipelineStore(projectId: string | null) {
   const [runs, setRuns] = useState<PipelineRun[]>([]);

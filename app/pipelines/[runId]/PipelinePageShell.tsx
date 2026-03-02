@@ -9,7 +9,8 @@ import { getSupabase } from "../../lib/supabase";
 import type { PipelineRun, PipelineStep, PipelineLogEntry, StepTimings } from "../../pipelines";
 import type { StepDesignProps } from "./step-designs";
 
-const STEPS: PipelineStep[] = ["worktree", "coding", "reviewing", "merging"];
+const ALL_STEPS: PipelineStep[] = ["worktree", "retrieving", "coding", "reviewing", "merging", "updating"];
+const BASE_STEPS: PipelineStep[] = ["worktree", "coding", "reviewing", "merging"];
 const MONO = "var(--font-geist-mono), ui-monospace, monospace";
 
 // =============================================================================
@@ -459,18 +460,21 @@ export default function PipelinePageShell({
 
   useEffect(() => {
     fetch(`/api/pipelines/${runId}`).then((res) => res.json()).then((data) => {
-      if (data && !data.error) setRun({ id: data.id, projectId: data.project_id, specificationId: data.specification_id, specVersionId: data.spec_version_id, status: data.status, currentStep: data.current_step, worktreeBranch: data.worktree_branch, worktreePath: data.worktree_path, reviewScore: data.review_score, reviewThreshold: data.review_threshold, errorMessage: data.error_message, createdAt: data.created_at, finishedAt: data.finished_at, iterations: data.iterations ?? 1, maxRetries: data.max_retries ?? 0 });
+      if (data && !data.error) setRun({ id: data.id, projectId: data.project_id, specificationId: data.specification_id, specVersionId: data.spec_version_id, status: data.status, currentStep: data.current_step, worktreeBranch: data.worktree_branch, worktreePath: data.worktree_path, reviewScore: data.review_score, reviewThreshold: data.review_threshold, errorMessage: data.error_message, createdAt: data.created_at, finishedAt: data.finished_at, iterations: data.iterations ?? 1, maxRetries: data.max_retries ?? 0, hasKnowledge: data.has_knowledge ?? false });
     }).catch(() => {});
   }, [runId]);
 
-  useEffect(() => { if (currentStep && (STEPS as string[]).includes(currentStep)) setActiveTab(currentStep); }, [currentStep]);
+  const hasKnowledge = run?.hasKnowledge ?? false;
+  const STEPS = hasKnowledge ? ALL_STEPS : BASE_STEPS;
+
+  useEffect(() => { if (currentStep && (STEPS as string[]).includes(currentStep)) setActiveTab(currentStep); }, [currentStep, STEPS]);
   useEffect(() => { if (status !== "failed" && status !== "rejected") setRetrying(false); }, [status]);
 
   useEffect(() => {
     if (sseVersion === 0) return;
     if (!["success", "failed", "rejected"].includes(status)) return;
     fetch(`/api/pipelines/${runId}`).then((res) => res.json()).then((data) => {
-      if (data && !data.error) setRun({ id: data.id, projectId: data.project_id, specificationId: data.specification_id, specVersionId: data.spec_version_id, status: data.status, currentStep: data.current_step, worktreeBranch: data.worktree_branch, worktreePath: data.worktree_path, reviewScore: data.review_score, reviewThreshold: data.review_threshold, errorMessage: data.error_message, createdAt: data.created_at, finishedAt: data.finished_at, iterations: data.iterations ?? 1, maxRetries: data.max_retries ?? 0 });
+      if (data && !data.error) setRun({ id: data.id, projectId: data.project_id, specificationId: data.specification_id, specVersionId: data.spec_version_id, status: data.status, currentStep: data.current_step, worktreeBranch: data.worktree_branch, worktreePath: data.worktree_path, reviewScore: data.review_score, reviewThreshold: data.review_threshold, errorMessage: data.error_message, createdAt: data.created_at, finishedAt: data.finished_at, iterations: data.iterations ?? 1, maxRetries: data.max_retries ?? 0, hasKnowledge: data.has_knowledge ?? false });
     }).catch(() => {});
   }, [sseVersion, status, runId]);
 
@@ -481,7 +485,7 @@ export default function PipelinePageShell({
     return () => clearInterval(interval);
   }, [stepTimings]);
 
-  const isActive = ["pending", "worktree", "coding", "reviewing", "merging"].includes(status);
+  const isActive = ["pending", "worktree", "retrieving", "coding", "reviewing", "merging", "updating"].includes(status);
   const displayStatus = status;
   const displayStep = currentStep;
   const threshold = run?.reviewThreshold ?? 80;
@@ -550,7 +554,7 @@ export default function PipelinePageShell({
   const activeTabTiming = _getTabTiming(activeTab, stepTimings, getSelectedIteration(activeTab));
 
   const stepDesignProps: StepDesignProps = {
-    steps: ["worktree", "coding", "reviewing", "merging"] as const,
+    steps: STEPS,
     activeTab,
     setActiveTab: (s: string) => setActiveTab(s as PipelineStep),
     getStepState,

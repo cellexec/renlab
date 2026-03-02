@@ -80,17 +80,21 @@ interface SessionRow {
 const ACTIVE_STATUSES: PipelineStatus[] = [
   "pending",
   "worktree",
+  "retrieving",
   "coding",
   "reviewing",
   "merging",
+  "updating",
 ];
 
 const PIPELINE_STEPS: PipelineStatus[] = [
   "pending",
   "worktree",
+  "retrieving",
   "coding",
   "reviewing",
   "merging",
+  "updating",
 ];
 
 const STEP_META: Record<
@@ -99,9 +103,11 @@ const STEP_META: Record<
 > = {
   pending: { label: "Pending", color: "text-zinc-400", dotColor: "bg-zinc-400" },
   worktree: { label: "Worktree", color: "text-amber-400", dotColor: "bg-amber-400" },
+  retrieving: { label: "Retrieving", color: "text-teal-400", dotColor: "bg-teal-400" },
   coding: { label: "Coding", color: "text-indigo-400", dotColor: "bg-indigo-400" },
   reviewing: { label: "Reviewing", color: "text-violet-400", dotColor: "bg-violet-400" },
   merging: { label: "Merging", color: "text-cyan-400", dotColor: "bg-cyan-500" },
+  updating: { label: "Updating", color: "text-rose-400", dotColor: "bg-rose-400" },
 };
 
 const EVENT_CONFIG: Record<
@@ -667,7 +673,11 @@ function ScoreHistogram({ runs }: { runs: RunData[] }) {
 
 function StepDurationBars({ runs }: { runs: RunData[] }) {
   const durations = useMemo(() => {
-    const steps = ["worktree", "coding", "reviewing", "merging"] as const;
+    const steps = ["worktree", "retrieving", "coding", "reviewing", "merging", "updating"] as const;
+    const hexColors: Record<string, string> = {
+      worktree: "#fbbf24", retrieving: "#2dd4bf", coding: "#818cf8",
+      reviewing: "#a78bfa", merging: "#06b6d4", updating: "#fb7185",
+    };
     const sums: Record<string, { total: number; count: number }> = {};
     for (const s of steps) sums[s] = { total: 0, count: 0 };
 
@@ -682,12 +692,14 @@ function StepDurationBars({ runs }: { runs: RunData[] }) {
       }
     }
 
-    return steps.map((s) => ({
-      step: STEP_META[s]?.label ?? s,
-      avgMs: sums[s].count > 0 ? sums[s].total / sums[s].count : 0,
-      color: STEP_META[s]?.dotColor ?? "bg-zinc-400",
-      hexColor: s === "worktree" ? "#fbbf24" : s === "coding" ? "#818cf8" : s === "reviewing" ? "#a78bfa" : "#06b6d4",
-    }));
+    return steps
+      .filter((s) => sums[s].count > 0)
+      .map((s) => ({
+        step: STEP_META[s]?.label ?? s,
+        avgMs: sums[s].count > 0 ? sums[s].total / sums[s].count : 0,
+        color: STEP_META[s]?.dotColor ?? "bg-zinc-400",
+        hexColor: hexColors[s] ?? "#71717a",
+      }));
   }, [runs]);
 
   const maxMs = Math.max(1, ...durations.map((d) => d.avgMs));

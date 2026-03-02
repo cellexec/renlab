@@ -1,6 +1,7 @@
 import { stream } from "node-claude-sdk";
 import { randomUUID } from "crypto";
 import { getSupabase } from "../../lib/supabase";
+import { hasKnowledgeBase, getArchitectureOverview } from "../../lib/knowledgeManager";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -87,10 +88,27 @@ export async function POST(req: Request) {
       }
 
       try {
+        // Inject project knowledge into system prompt if available
+        let finalSystemPrompt = systemPrompt || "";
+        if (projectPath) {
+          try {
+            const hasKb = await hasKnowledgeBase(projectPath);
+            if (hasKb) {
+              const overview = await getArchitectureOverview(projectPath);
+              if (overview) {
+                const knowledgeBlock = `\n<project-knowledge>\n${overview}\n</project-knowledge>\nUse this knowledge to write better specifications grounded in the project's actual architecture.`;
+                finalSystemPrompt = finalSystemPrompt ? `${finalSystemPrompt}\n${knowledgeBlock}` : knowledgeBlock;
+              }
+            }
+          } catch {
+            // Non-fatal — continue without knowledge
+          }
+        }
+
         const messages = stream(userPrompt, {
           model,
           ...(isResume ? { resume: sessionId } : { sessionId }),
-          ...(systemPrompt ? { appendSystemPrompt: systemPrompt } : {}),
+          ...(finalSystemPrompt ? { appendSystemPrompt: finalSystemPrompt } : {}),
           ...(allowedTools ? { allowedTools } : {}),
           ...(projectPath ? { cwd: projectPath } : {}),
         });

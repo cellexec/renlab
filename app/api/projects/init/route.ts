@@ -3,6 +3,7 @@ import { exec as execCb } from "child_process";
 import { promisify } from "util";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { scaffoldKnowledge } from "../../../lib/knowledgeManager";
 
 const exec = promisify(execCb);
 
@@ -205,6 +206,9 @@ export async function POST(req: Request) {
     if (!gitRoot.trim()) {
       await exec("git init", { cwd: dir });
     }
+
+    // Scaffold knowledge directory structure
+    await scaffoldKnowledge(dir);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

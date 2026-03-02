@@ -16,7 +16,7 @@ type ScoreRange = "high" | "mid" | "low" | null;
 
 type DisplayGroup = "active" | "success" | "failed" | "cancelled";
 
-const ACTIVE_STATUSES: PipelineStatus[] = ["pending", "worktree", "coding", "reviewing", "merging"];
+const ACTIVE_STATUSES: PipelineStatus[] = ["pending", "worktree", "retrieving", "coding", "reviewing", "merging", "updating"];
 
 function toDisplayGroup(status: PipelineStatus): DisplayGroup {
   if (ACTIVE_STATUSES.includes(status)) return "active";
@@ -66,15 +66,17 @@ const GROUP_CONFIG: Record<
 const GROUP_ORDER: DisplayGroup[] = ["active", "success", "failed", "cancelled"];
 
 const STATUS_BADGE: Record<PipelineStatus, { dot: string; label: string; bg: string; text: string }> = {
-  pending:   { dot: "bg-zinc-500",                label: "Pending",   bg: "bg-zinc-500/10",    text: "text-zinc-400" },
-  worktree:  { dot: "bg-amber-500 animate-pulse", label: "Worktree",  bg: "bg-amber-500/10",   text: "text-amber-400" },
-  coding:    { dot: "bg-indigo-500 animate-pulse", label: "Coding",    bg: "bg-indigo-500/10",  text: "text-indigo-400" },
-  reviewing: { dot: "bg-violet-500 animate-pulse", label: "Reviewing", bg: "bg-violet-500/10",  text: "text-violet-400" },
-  merging:   { dot: "bg-cyan-500 animate-pulse",   label: "Merging",   bg: "bg-cyan-500/10",    text: "text-cyan-400" },
-  success:   { dot: "bg-emerald-500",              label: "Success",   bg: "bg-emerald-500/10", text: "text-emerald-400" },
-  failed:    { dot: "bg-red-500",                  label: "Failed",    bg: "bg-red-500/10",     text: "text-red-400" },
-  cancelled: { dot: "bg-zinc-500",                 label: "Cancelled", bg: "bg-zinc-500/10",    text: "text-zinc-400" },
-  rejected:  { dot: "bg-red-500",                  label: "Rejected",  bg: "bg-red-500/10",     text: "text-red-400" },
+  pending:    { dot: "bg-zinc-500",                label: "Pending",    bg: "bg-zinc-500/10",    text: "text-zinc-400" },
+  worktree:   { dot: "bg-amber-500 animate-pulse", label: "Worktree",   bg: "bg-amber-500/10",   text: "text-amber-400" },
+  retrieving: { dot: "bg-teal-500 animate-pulse",  label: "Retrieving", bg: "bg-teal-500/10",    text: "text-teal-400" },
+  coding:     { dot: "bg-indigo-500 animate-pulse", label: "Coding",    bg: "bg-indigo-500/10",  text: "text-indigo-400" },
+  reviewing:  { dot: "bg-violet-500 animate-pulse", label: "Reviewing", bg: "bg-violet-500/10",  text: "text-violet-400" },
+  merging:    { dot: "bg-cyan-500 animate-pulse",   label: "Merging",   bg: "bg-cyan-500/10",    text: "text-cyan-400" },
+  updating:   { dot: "bg-rose-500 animate-pulse",   label: "Updating",  bg: "bg-rose-500/10",    text: "text-rose-400" },
+  success:    { dot: "bg-emerald-500",              label: "Success",   bg: "bg-emerald-500/10", text: "text-emerald-400" },
+  failed:     { dot: "bg-red-500",                  label: "Failed",    bg: "bg-red-500/10",     text: "text-red-400" },
+  cancelled:  { dot: "bg-zinc-500",                 label: "Cancelled", bg: "bg-zinc-500/10",    text: "text-zinc-400" },
+  rejected:   { dot: "bg-red-500",                  label: "Rejected",  bg: "bg-red-500/10",     text: "text-red-400" },
 };
 
 // =============================================================================

@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import { stream } from "node-claude-sdk";
 import { getSupabase } from "./supabase";
+import { hasKnowledgeBase, getRelevantKnowledge } from "./knowledgeManager";
 import type {
   PipelineStatus,
   PipelineStep,
@@ -245,11 +246,12 @@ async function runReview(
   specContent: string,
   baseCommit: string,
   ac: AbortController,
+  knowledgeContext = "",
 ): Promise<{ score: number; summary: string; issues: string[] }> {
   pushLog(runId, "reviewing", "stdout", "Starting review agent (opus)...");
 
   const reviewPrompt = `You are reviewing code changes made by an automated coding agent. The changes were made to implement the following specification:
-
+${knowledgeContext ? `\n<project-knowledge>\n${knowledgeContext}\n\nVerify implementation follows documented patterns. Flag any drift.\n</project-knowledge>\n` : ""}
 <specification>
 ${specContent}
 </specification>
@@ -419,6 +421,66 @@ export async function startPipeline(
 
     if (ac.signal.aborted) throw new Error("Cancelled");
 
+    // --- Step 1.5: Retrieve knowledge context ---
+    let knowledgeContext = "";
+    const knowledgeExists = await hasKnowledgeBase(projectPath);
+
+    if (knowledgeExists) {
+      setRunStatus(runId, "retrieving", "retrieving");
+      await updateDb(runId, { status: "retrieving", current_step: "retrieving", has_knowledge: true });
+
+      try {
+        pushLog(runId, "retrieving", "stdout", "Retrieving project knowledge...");
+
+        const retrievalPrompt = `You are a knowledge retrieval agent. Given the specification below, find the most relevant docs from ./knowledge/ and output them in a <knowledge-context> block.
+
+<specification>
+${specContent}
+</specification>
+
+Read knowledge docs using Glob/Read. Output up to 5 most relevant docs as:
+<knowledge-context>
+## [Title] (category: [cat])
+[content]
+</knowledge-context>`;
+
+        const retrievalStream = stream(retrievalPrompt, {
+          model: "sonnet",
+          cwd: worktreeCwd,
+          allowedTools: ["Read", "Glob", "Grep"],
+          permissionMode: "bypassPermissions",
+          timeoutMs: 60_000,
+          signal: ac.signal,
+        });
+
+        const { resultText } = await consumeAgentStream(retrievalStream, runId, "retrieving", ac.signal);
+
+        // Extract <knowledge-context> block from result
+        const ctxMatch = resultText.match(/<knowledge-context>([\s\S]*?)<\/knowledge-context>/);
+        if (ctxMatch) {
+          knowledgeContext = ctxMatch[0];
+          pushLog(runId, "retrieving", "stdout", `Retrieved knowledge context (${knowledgeContext.length} chars).`);
+        } else {
+          // Fall back to simple file-based retrieval
+          knowledgeContext = await getRelevantKnowledge(projectPath, specContent);
+          if (knowledgeContext) {
+            pushLog(runId, "retrieving", "stdout", `Fallback retrieval: ${knowledgeContext.length} chars.`);
+          } else {
+            pushLog(runId, "retrieving", "stdout", "No relevant knowledge found.");
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (ac.signal.aborted) throw err;
+        pushLog(runId, "retrieving", "stderr", `Knowledge retrieval failed (non-fatal): ${msg}`);
+        // Non-fatal — continue without knowledge context
+      }
+    } else {
+      await updateDb(runId, { has_knowledge: false });
+    }
+
+    if (ac.signal.aborted) throw new Error("Cancelled");
+
     // --- Steps 2 & 3: Coding + Review retry loop ---
     const totalAttempts = maxRetries + 1;
     let lastReviewResult: { score: number; summary: string; issues: string[] } | null = null;
@@ -450,7 +512,7 @@ export async function startPipeline(
 CRITICAL: You MUST only read and write files within your current working directory. NEVER access files outside the worktree (e.g., do not navigate to parent directories or use absolute paths pointing to the main repository). All file paths should be relative to your cwd or absolute paths within: ${worktreeCwd}
 
 Read the codebase first to understand the existing patterns, then implement all the changes described in the spec.
-
+${knowledgeContext ? `\n<project-knowledge>\n${knowledgeContext}\n</project-knowledge>\n` : ""}
 <specification>
 ${specContent}
 </specification>
@@ -480,7 +542,7 @@ The previous iteration did not produce reviewable changes. Please re-read the sp
 </review-feedback>`;
 
         const retryPrompt = `You are improving an existing implementation in a git worktree. A reviewer has rejected your previous changes.
-
+${knowledgeContext ? `\n<project-knowledge>\n${knowledgeContext}\n</project-knowledge>\n` : ""}
 <specification>
 ${specContent}
 </specification>
@@ -541,7 +603,7 @@ Fix the issues identified by the reviewer. The codebase already contains your pr
 
       let reviewResult: { score: number; summary: string; issues: string[] };
       try {
-        reviewResult = await runReview(runId, worktreeCwd, specContent, baseCommit, ac);
+        reviewResult = await runReview(runId, worktreeCwd, specContent, baseCommit, ac, knowledgeContext);
       } catch (reviewErr) {
         // Re-throw cancellations — they must propagate to the outer catch
         if (ac.signal.aborted) throw reviewErr;
@@ -556,7 +618,7 @@ Fix the issues identified by the reviewer. The codebase already contains your pr
         // Final iteration — retry the review once more before giving up
         pushLog(runId, "reviewing", "stdout", "Final iteration: retrying review one more time...");
         try {
-          reviewResult = await runReview(runId, worktreeCwd, specContent, baseCommit, ac);
+          reviewResult = await runReview(runId, worktreeCwd, specContent, baseCommit, ac, knowledgeContext);
         } catch (retryErr) {
           if (ac.signal.aborted) throw retryErr;
           pushLog(runId, "reviewing", "stderr", `Review retry also failed: ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`);
@@ -605,6 +667,88 @@ Fix the issues identified by the reviewer. The codebase already contains your pr
       }
 
       pushLog(runId, "merging", "stdout", "Merge successful!");
+
+      // --- Step 5: Update knowledge base (after merge, before success) ---
+      if (knowledgeExists) {
+        try {
+          setRunStatus(runId, "updating", "updating");
+          await updateDb(runId, { status: "updating", current_step: "updating" });
+
+          pushLog(runId, "updating", "stdout", "Updating knowledge base...");
+
+          // Get diff summary from merge
+          const diffStat = (await execInDir(gitRoot, "git", ["diff", "--stat", `${baseCommit}..HEAD`])).stdout;
+          const fullDiff = (await execInDir(gitRoot, "git", ["diff", `${baseCommit}..HEAD`])).stdout;
+          const truncatedDiff = fullDiff.slice(0, 50_000);
+
+          const updatePrompt = `You are a knowledge base maintenance agent. A pipeline just merged changes for the specification below. Update ./knowledge/ to reflect these changes.
+
+<specification>
+${specContent}
+</specification>
+
+<diff-summary>
+${diffStat}
+</diff-summary>
+
+<full-diff>
+${truncatedDiff}
+</full-diff>
+
+Instructions:
+1. Read existing knowledge docs in ./knowledge/
+2. Update component docs for changed files
+3. Create new docs for significantly new files/modules
+4. Update architecture docs if project structure changed
+5. Add a decision log entry in knowledge/decisions/ if new patterns were introduced
+6. Update frontmatter: lastUpdated, relatedSpecs, pipelineRunId, confidence (set to 85 for pipeline-confirmed docs)
+7. Update meta.json files if you created new docs
+
+Keep docs concise (30-80 lines). Focus on WHAT and WHY.`;
+
+          const updateStream = stream(updatePrompt, {
+            model: "sonnet",
+            cwd: projectPath,
+            permissionMode: "bypassPermissions",
+            timeoutMs: 0,
+            signal: ac.signal,
+          });
+
+          await consumeAgentStream(updateStream, runId, "updating", ac.signal);
+
+          // Commit knowledge changes if any
+          await execInDir(projectPath, "git", ["add", "knowledge/"]);
+          const knowledgeDiffCheck = await execInDir(projectPath, "git", ["diff", "--cached", "--quiet", "--", "knowledge/"]);
+          let knowledgeCommitSha: string | null = null;
+          if (knowledgeDiffCheck.code !== 0) {
+            const commitResult = await execInDir(projectPath, "git", [
+              "commit", "-m", `Knowledge: update docs for ${specTitle.replace(/"/g, '\\"')}`,
+            ]);
+            if (commitResult.code === 0) {
+              const { stdout: sha } = await execInDir(projectPath, "git", ["rev-parse", "HEAD"]);
+              knowledgeCommitSha = sha.trim();
+              pushLog(runId, "updating", "stdout", `Knowledge docs committed: ${knowledgeCommitSha?.slice(0, 8)}`);
+            }
+          } else {
+            pushLog(runId, "updating", "stdout", "No knowledge changes to commit.");
+          }
+
+          // Insert knowledge_updates row
+          await getSupabase().from("knowledge_updates").insert({
+            project_id: projectId,
+            pipeline_run_id: runId,
+            type: "pipeline",
+            docs_created: 0,
+            docs_updated: 1,
+            commit_sha: knowledgeCommitSha,
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (ac.signal.aborted) throw err;
+          pushLog(runId, "updating", "stderr", `Knowledge update failed (non-fatal): ${msg}`);
+          // Non-fatal — still set pipeline to success
+        }
+      }
 
       setRunStatus(runId, "success", null);
       await updateDb(runId, { status: "success", finished_at: new Date().toISOString() });
