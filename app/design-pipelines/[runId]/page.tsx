@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useDesignPipelineLogs } from "../../hooks/useDesignPipelineLogs";
 import { useDesignVariants } from "../../hooks/useDesignVariants";
@@ -8,7 +8,6 @@ import {
   GlassCard,
   GlassCardStyles,
   StatusBadge,
-  StepProgress,
   formatStepDuration,
   InfoWidget,
   InfoWidgetRow,
@@ -24,7 +23,6 @@ import type {
   DesignRun,
 } from "../../design-pipelines";
 import type { BadgeStatus } from "../../components/ui";
-import type { StepState } from "../../components/ui";
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -52,6 +50,72 @@ const VARIANT_STATUS_CONFIG: Record<DesignVariantStatus, { label: string; dot: s
 };
 
 const TERMINAL_STATUSES = new Set<string>(["success", "failed", "cancelled"]);
+
+/* ------------------------------------------------------------------ */
+/*  Step Design styling (matching feature pipeline StepDesign18)        */
+/* ------------------------------------------------------------------ */
+
+const STEP_ICONS: Record<string, (cls: string) => ReactNode> = {
+  parent_worktree: (cls) => <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>,
+  generating: (cls) => <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
+  merging_variants: (cls) => <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>,
+  installing: (cls) => <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
+  dev_server: (cls) => <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" /></svg>,
+  awaiting_review: (cls) => <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+  finalizing: (cls) => <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  merging_final: (cls) => <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>,
+};
+
+const STATE_TEXT_COLOR: Record<string, string> = {
+  complete: "text-emerald-400",
+  active: "text-amber-400",
+  failed: "text-red-400",
+  pending: "text-zinc-600",
+};
+
+const STATE_BORDER: Record<string, string> = {
+  complete: "border-emerald-500/30",
+  active: "border-amber-500/30",
+  failed: "border-red-500/30",
+  pending: "border-white/[0.06]",
+};
+
+const STATE_BG: Record<string, string> = {
+  complete: "bg-emerald-500/10",
+  active: "bg-amber-500/10",
+  failed: "bg-red-500/10",
+  pending: "bg-white/[0.02]",
+};
+
+const STATE_GLOW: Record<string, string> = {
+  complete: "shadow-[0_0_12px_rgba(16,185,129,0.15)]",
+  active: "shadow-[0_0_12px_rgba(251,191,36,0.15)]",
+  failed: "shadow-[0_0_12px_rgba(239,68,68,0.15)]",
+  pending: "",
+};
+
+const DOT_FILL: Record<string, string> = {
+  complete: "bg-emerald-400",
+  active: "bg-amber-400",
+  failed: "bg-red-400",
+  pending: "bg-zinc-700",
+};
+
+function StatusIndicator({ state, size = "sm" }: { state: string; size?: "sm" | "md" }) {
+  const s = size === "md" ? "h-4 w-4" : "h-3 w-3";
+  const dot = size === "md" ? "h-1.5 w-1.5" : "h-1 w-1";
+  if (state === "complete") return <svg className={`${s} text-emerald-400`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>;
+  if (state === "failed") return <svg className={`${s} text-red-400`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>;
+  if (state === "active") return <svg className={`${s} text-amber-400 animate-spin`} fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>;
+  return <div className={`${dot} rounded-full bg-zinc-600`} />;
+}
+
+function variantStateFromStatus(variantStatus: DesignVariantStatus): string {
+  if (variantStatus === "merged") return "complete";
+  if (variantStatus === "failed") return "failed";
+  if (variantStatus === "generating" || variantStatus === "merging") return "active";
+  return "pending";
+}
 
 function statusToBadge(status: DesignPipelineStatus): BadgeStatus {
   if (status === "success") return "success";
@@ -186,7 +250,7 @@ export default function DesignPipelineDetailPage({ params }: { params: Promise<{
   const { logs, status, currentStep, stepTimings, devServerPort, variants: liveVariants } = useDesignPipelineLogs({ runId });
   const { variants: dbVariants } = useDesignVariants(runId);
 
-  const [filterStep, setFilterStep] = useState<DesignPipelineStep | "all">("all");
+  const [activeTab, setActiveTab] = useState<DesignPipelineStep>("parent_worktree");
   const [filterVariant, setFilterVariant] = useState<number | "all">("all");
   const [finalizeMessage, setFinalizeMessage] = useState("");
   const [finalizing, setFinalizing] = useState(false);
@@ -261,23 +325,30 @@ export default function DesignPipelineDetailPage({ params }: { params: Promise<{
   const isActive = !isTerminal && status !== "pending";
   const isAwaitingReview = status === "awaiting_review";
 
+  // Auto-follow the current step
+  useEffect(() => {
+    if (currentStep && STEPS.some((s) => s.key === currentStep)) setActiveTab(currentStep);
+  }, [currentStep]);
+
   // Merge live variant statuses with DB variants
   const displayVariants = dbVariants.map((dbv) => {
     const live = liveVariants.find((v) => v.variantNumber === dbv.variantNumber);
     return { ...dbv, status: live?.status ?? dbv.status };
   });
 
-  // Filter logs
+  // Filter logs by active tab and variant
   const filteredLogs = logs.filter((log) => {
-    if (filterStep !== "all" && log.step !== filterStep) return false;
+    if (log.step !== activeTab) return false;
     if (filterVariant !== "all" && log.variantNumber !== filterVariant) return false;
     return true;
   });
 
+  const getStepLogCount = (key: string) => logs.filter((l) => l.step === key).length;
+
   // Step state resolver for StepProgress
   const currentStepIdx = currentStep ? STEPS.findIndex((s) => s.key === currentStep) : -1;
 
-  const getStepState = (key: string): StepState => {
+  const getStepState = (key: string): "complete" | "active" | "failed" | "pending" => {
     const idx = STEPS.findIndex((s) => s.key === key);
     if (status === "success") return "complete";
     if (status === "failed" || status === "cancelled") {
@@ -323,11 +394,11 @@ export default function DesignPipelineDetailPage({ params }: { params: Promise<{
   };
 
   // Build the log terminal title
-  const activeStepTiming = filterStep !== "all" ? getStepTiming(filterStep) : undefined;
+  const activeStepTiming = getStepTiming(activeTab);
   const logTerminalTitle = [
-    filterStep !== "all" ? STEPS.find((s) => s.key === filterStep)?.label ?? filterStep : "all steps",
+    STEPS.find((s) => s.key === activeTab)?.label ?? activeTab,
     filterVariant !== "all" ? `v${filterVariant}` : null,
-    activeStepTiming ? `-- ${formatStepDuration(activeStepTiming.startedAt, activeStepTiming.endedAt)}` : null,
+    activeStepTiming ? `\u2014 ${formatStepDuration(activeStepTiming.startedAt, activeStepTiming.endedAt)}` : null,
   ].filter(Boolean).join(" ");
 
   return (
@@ -420,74 +491,131 @@ export default function DesignPipelineDetailPage({ params }: { params: Promise<{
             <DesignStatusWidget status={status} />
           </div>
 
-          {/* ---- Step Progress ---- */}
-          <GlassCard variant="default" padding="md" className="fade-in-up" style={{ animationDelay: "160ms" }}>
-            <div className="flex items-center gap-4">
-              <div className="flex-1 overflow-x-auto">
-                <StepProgress
-                  steps={STEPS.map((s) => ({ key: s.key, label: s.label, iconPath: s.iconPath }))}
-                  getStepState={getStepState}
-                  getStepTiming={getStepTiming}
-                />
-              </div>
-            </div>
-            {/* Live variant dots during generating step */}
-            {currentStep === "generating" && liveVariants.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-white/[0.04] flex items-center gap-3">
-                <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-medium">Variants</span>
-                <div className="flex gap-2">
-                  {liveVariants.map((v) => (
-                    <div key={v.variantNumber} className="flex items-center gap-1.5">
-                      <div
-                        title={`v${v.variantNumber}: ${v.status}`}
-                        className={`w-2 h-2 rounded-full ${VARIANT_STATUS_CONFIG[v.status]?.dot ?? "bg-zinc-600"}`}
-                      />
-                      <span className="text-[10px] text-zinc-500" style={{ fontFamily: MONO }}>v{v.variantNumber}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </GlassCard>
-        </div>
+          {/* ---- Step Boxes (matching feature pipeline StepDesign18) ---- */}
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-xl p-5 overflow-x-auto fade-in-up" style={{ animationDelay: "160ms" }}>
+            <div className="flex items-start min-w-0">
+              {STEPS.map((step, colIdx) => {
+                const state = getStepState(step.key);
+                const isSelected = activeTab === step.key;
+                const timing = getStepTiming(step.key);
+                const logCount = getStepLogCount(step.key);
+                const icon = STEP_ICONS[step.key];
+                const lineActive = state === "complete";
 
-        {/* ---- Variant Cards ---- */}
-        {displayVariants.length > 0 && (
-          <div className="px-4 md:px-8 mb-4 shrink-0 fade-in-up" style={{ animationDelay: "240ms" }}>
-            <SectionHeader size="sm" spacing="tight" color="text-zinc-400">
-              Variants
-            </SectionHeader>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {displayVariants.map((v) => {
-                const vcfg = VARIANT_STATUS_CONFIG[v.status];
+                // For the "generating" step, show variant sub-cards
+                const hasVariantCards = step.key === "generating" && displayVariants.length > 0;
+
                 return (
-                  <GlassCard key={v.id} variant="default" padding="md">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-zinc-200">v{v.variantNumber}</span>
-                      <StatusBadge status={vcfg.badge} label={vcfg.label} size="sm" />
-                    </div>
-                    {v.brief && (
-                      <p className="text-[12px] text-zinc-500 line-clamp-2 leading-relaxed">{v.brief}</p>
-                    )}
-                    {isAwaitingReview && devServerPort && v.status === "merged" && (
-                      <a
-                        href={`http://localhost:${devServerPort}/design-preview/v${v.variantNumber}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2.5 inline-flex items-center gap-1.5 text-[11px] text-purple-400 hover:text-purple-300 transition-colors"
+                  <div key={step.key} className="flex items-stretch flex-1 min-w-[180px]">
+                    {/* Column box */}
+                    <div className={`flex-1 rounded-xl border transition-all duration-300 ${
+                      isSelected
+                        ? `${STATE_BORDER[state]} ${STATE_BG[state]} ${STATE_GLOW[state]}`
+                        : "border-white/[0.06] hover:border-white/[0.1]"
+                    }`}>
+                      {/* Box header */}
+                      <button
+                        onClick={() => setActiveTab(step.key)}
+                        className="w-full flex items-center justify-between px-4 py-3 cursor-pointer border-b border-white/[0.06]"
                       >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-4.5h6m0 0v6m0-6L9.75 14.25" />
-                        </svg>
-                        Open preview
-                      </a>
+                        <div className="flex items-center gap-2.5">
+                          <div className={`flex h-6 w-6 items-center justify-center rounded-md ${isSelected ? STATE_BG[state] : "bg-white/[0.04]"} transition-all duration-200`}>
+                            {icon?.(`h-3 w-3 ${STATE_TEXT_COLOR[state]}`)}
+                          </div>
+                          <span className={`text-xs font-semibold ${isSelected ? "text-zinc-100" : STATE_TEXT_COLOR[state]}`}>
+                            {step.label}
+                          </span>
+                        </div>
+                        {timing && (
+                          <span className="text-[10px] text-zinc-600 tabular-nums" style={{ fontFamily: MONO }}>
+                            {formatStepDuration(timing.startedAt, timing.endedAt)}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Cards inside the box */}
+                      <div className="p-2 space-y-1">
+                        {hasVariantCards ? (
+                          /* Variant cards for the generating step */
+                          displayVariants.map((v) => {
+                            const vState = variantStateFromStatus(v.status);
+                            const isActiveVariant = filterVariant === v.variantNumber;
+                            return (
+                              <button
+                                key={v.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveTab("generating");
+                                  setFilterVariant(isActiveVariant ? "all" : v.variantNumber);
+                                }}
+                                className={`w-full flex items-center gap-2.5 rounded-lg relative cursor-pointer transition-all duration-200 text-left py-2.5 px-3 ${
+                                  isActiveVariant && isSelected
+                                    ? "bg-white/[0.06] ring-1 ring-white/[0.1]"
+                                    : "bg-white/[0.02] hover:bg-white/[0.04]"
+                                }`}
+                              >
+                                {/* Left connection dot */}
+                                <div className={`absolute -left-[5px] top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full border-2 border-zinc-900 transition-all duration-300 ${DOT_FILL[vState]}`} />
+                                {/* Right connection dot */}
+                                <div className={`absolute -right-[5px] top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full border-2 border-zinc-900 transition-all duration-300 ${DOT_FILL[vState]}`} />
+                                <StatusIndicator state={vState} size="sm" />
+                                <span className={`text-[11px] font-medium flex-1 ${isActiveVariant && isSelected ? "text-zinc-200" : "text-zinc-500"}`}>
+                                  Variant {v.variantNumber}
+                                </span>
+                                {v.brief && (
+                                  <span className="text-[9px] text-zinc-700 truncate max-w-[60px]">{v.brief}</span>
+                                )}
+                              </button>
+                            );
+                          })
+                        ) : (
+                          /* Single card for non-variant steps */
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveTab(step.key);
+                            }}
+                            className={`w-full flex items-center gap-2.5 rounded-lg relative cursor-pointer transition-all duration-200 text-left py-2.5 px-3 ${
+                              isSelected
+                                ? "bg-white/[0.06] ring-1 ring-white/[0.1]"
+                                : "bg-white/[0.02] hover:bg-white/[0.04]"
+                            }`}
+                          >
+                            {/* Left connection dot */}
+                            <div className={`absolute -left-[5px] top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full border-2 border-zinc-900 transition-all duration-300 ${DOT_FILL[state]}`} />
+                            {/* Right connection dot */}
+                            <div className={`absolute -right-[5px] top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full border-2 border-zinc-900 transition-all duration-300 ${DOT_FILL[state]}`} />
+                            <StatusIndicator state={state} size="sm" />
+                            <span className={`text-[11px] font-medium flex-1 ${isSelected ? "text-zinc-200" : "text-zinc-500"}`}>
+                              {step.label}
+                            </span>
+                            {logCount > 0 && (
+                              <span className="text-[9px] text-zinc-700 tabular-nums" style={{ fontFamily: MONO }}>
+                                {logCount}
+                              </span>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Horizontal connector line with arrow */}
+                    {colIdx < STEPS.length - 1 && (
+                      <div className="flex flex-col items-center justify-center w-8 shrink-0 py-8">
+                        <div className="flex items-center">
+                          <div className={`h-[2px] w-4 rounded-l-full transition-colors duration-300 ${lineActive ? "bg-emerald-500/40" : "bg-white/[0.06]"}`} />
+                          <svg className={`h-3 w-3 -ml-0.5 transition-colors duration-300 ${lineActive ? "text-emerald-500/40" : "text-white/[0.06]"}`} fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M10 6l6 6-6 6V6z" />
+                          </svg>
+                        </div>
+                      </div>
                     )}
-                  </GlassCard>
+                  </div>
                 );
               })}
             </div>
           </div>
-        )}
+        </div>
 
         {/* ---- Review & Finalize ---- */}
         {isAwaitingReview && (
@@ -515,12 +643,31 @@ export default function DesignPipelineDetailPage({ params }: { params: Promise<{
                     >
                       localhost:{devServerPort}
                     </a>
-                    . Review the variants above, then tell the agent what to do.
+                    . Review the variants, then tell the agent what to do.
                   </>
                 ) : (
                   "Dev server is not available. Review the generated code in the worktree, then tell the agent what to do."
                 )}
               </p>
+              {/* Variant preview links */}
+              {devServerPort && displayVariants.filter((v) => v.status === "merged").length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {displayVariants.filter((v) => v.status === "merged").map((v) => (
+                    <a
+                      key={v.id}
+                      href={`http://localhost:${devServerPort}/design-preview/v${v.variantNumber}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/20 bg-purple-500/[0.06] px-3 py-1.5 text-[11px] text-purple-400 hover:text-purple-300 hover:bg-purple-500/[0.1] transition-all"
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-4.5h6m0 0v6m0-6L9.75 14.25" />
+                      </svg>
+                      Preview v{v.variantNumber}
+                    </a>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -559,32 +706,19 @@ export default function DesignPipelineDetailPage({ params }: { params: Promise<{
             scrollDep={filteredLogs.length}
             emptyMessage={logs.length === 0 ? "Waiting for logs..." : "No logs match the current filters."}
             headerRight={
-              <div className="flex items-center gap-2">
+              displayVariants.length > 0 ? (
                 <select
-                  value={filterStep}
-                  onChange={(e) => setFilterStep(e.target.value as DesignPipelineStep | "all")}
+                  value={filterVariant}
+                  onChange={(e) => setFilterVariant(e.target.value === "all" ? "all" : parseInt(e.target.value))}
                   className="text-[11px] bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1 text-zinc-300 outline-none cursor-pointer hover:bg-white/[0.06] transition-colors"
                   style={{ fontFamily: MONO }}
                 >
-                  <option value="all">All steps</option>
-                  {STEPS.map((s) => (
-                    <option key={s.key} value={s.key}>{s.label}</option>
+                  <option value="all">All variants</option>
+                  {displayVariants.map((v) => (
+                    <option key={v.variantNumber} value={v.variantNumber}>v{v.variantNumber}</option>
                   ))}
                 </select>
-                {displayVariants.length > 0 && (
-                  <select
-                    value={filterVariant}
-                    onChange={(e) => setFilterVariant(e.target.value === "all" ? "all" : parseInt(e.target.value))}
-                    className="text-[11px] bg-white/[0.04] border border-white/[0.08] rounded-md px-2 py-1 text-zinc-300 outline-none cursor-pointer hover:bg-white/[0.06] transition-colors"
-                    style={{ fontFamily: MONO }}
-                  >
-                    <option value="all">All variants</option>
-                    {displayVariants.map((v) => (
-                      <option key={v.variantNumber} value={v.variantNumber}>v{v.variantNumber}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
+              ) : undefined
             }
           >
             {filteredLogs.map((log, idx) => (
