@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from "child_process";
+import { rm } from "fs/promises";
 import { stream } from "node-claude-sdk";
+import { cleanEnv } from "./env";
 import { getSupabase } from "./supabase";
 import {
   stripAnsi,
@@ -168,23 +170,26 @@ function isMonorepo(worktreeRoot: string): boolean {
 
 /**
  * Prepare a monorepo worktree for dev server:
- * 1. Build shared packages so their dist/ exports exist
+ * 1. Build shared packages so their dist/ exports exist (with dist/ validation)
  * 2. Patch next.config with turbopack.root so module resolution uses worktree, not parent repo
  * 3. Symlink CSS deps (tailwindcss, @tailwindcss) to worktree root node_modules
- * 4. Copy .env files from the original project into the worktree
+ * 4. Copy .env files from both monorepo root and app directory into the worktree
  */
 async function prepareMonorepoWorktree(
   worktreeRoot: string,
   worktreeCwd: string,
   originalProjectPath: string,
+  originalGitRoot: string,
   pm: "bun" | "npm",
   log: (text: string, isErr?: boolean) => void,
 ) {
+  const env = cleanEnv();
+
   // 1. Build shared packages
   log("Building shared packages...");
   const buildResult = await execInDir(worktreeRoot, pm === "bun" ? "bun" : "npx", [
     ...(pm === "bun" ? ["run", "build", "--filter=./packages/*"] : ["turbo", "run", "build", "--filter=./packages/*"]),
-  ]);
+  ], env);
   if (buildResult.code !== 0) {
     // Try individual package builds as fallback (turbo filter syntax varies)
     log("Bulk build had issues, building packages individually...");
@@ -194,10 +199,23 @@ async function prepareMonorepoWorktree(
         if (!pkg.isDirectory()) continue;
         const pkgPath = join(pkgsDir, pkg.name);
         if (!existsSync(join(pkgPath, "package.json"))) continue;
-        const result = await execInDir(pkgPath, pm, ["run", "build"]);
+        const result = await execInDir(pkgPath, pm, ["run", "build"], env);
         if (result.code !== 0) {
           log(`Warning: ${pkg.name} build failed (non-fatal)`, true);
         }
+      }
+    }
+  }
+
+  // Validate shared package builds — check dist/ exists
+  const pkgsDir = join(worktreeRoot, "packages");
+  if (existsSync(pkgsDir)) {
+    for (const pkg of readdirSync(pkgsDir, { withFileTypes: true })) {
+      if (!pkg.isDirectory()) continue;
+      const pkgPath = join(pkgsDir, pkg.name);
+      if (!existsSync(join(pkgPath, "package.json"))) continue;
+      if (!existsSync(join(pkgPath, "dist"))) {
+        log(`Warning: packages/${pkg.name}/dist not found — may use src/ exports or have no build step`, true);
       }
     }
   }
@@ -221,20 +239,51 @@ async function prepareMonorepoWorktree(
       // Only patch if turbopack.root isn't already set
       if (!configContent.includes("turbopack") || !configContent.includes("root")) {
         const relativeRoot = relative(worktreeCwd, worktreeRoot).replace(/\\/g, "/");
+        const turbopackSnippet = `\n  turbopack: {\n    root: resolve(__dirname, "${relativeRoot}"),\n  },`;
+
         // Add path import if not present
         if (!configContent.includes('from "path"') && !configContent.includes("require(\"path\")")) {
           if (configContent.includes("import ")) {
             configContent = `import { resolve } from "path";\n${configContent}`;
           }
         }
-        // Insert turbopack.root into the config object
-        const insertPoint = configContent.match(/const\s+\w+\s*:\s*\w+\s*=\s*\{/);
-        if (insertPoint && insertPoint.index != null) {
-          const insertIdx = insertPoint.index + insertPoint[0].length;
-          configContent = configContent.slice(0, insertIdx) +
-            `\n  turbopack: {\n    root: resolve(__dirname, "${relativeRoot}"),\n  },` +
-            configContent.slice(insertIdx);
+
+        let patched = false;
+
+        // Pattern 1: `const nextConfig: NextConfig = {` (typed variable)
+        const typedVarMatch = configContent.match(/const\s+\w+\s*:\s*\w+\s*=\s*\{/);
+        if (typedVarMatch && typedVarMatch.index != null) {
+          const insertIdx = typedVarMatch.index + typedVarMatch[0].length;
+          configContent = configContent.slice(0, insertIdx) + turbopackSnippet + configContent.slice(insertIdx);
+          patched = true;
         }
+
+        // Pattern 2: `const nextConfig = {` (untyped variable)
+        if (!patched) {
+          const untypedVarMatch = configContent.match(/const\s+\w+\s*=\s*\{/);
+          if (untypedVarMatch && untypedVarMatch.index != null) {
+            const insertIdx = untypedVarMatch.index + untypedVarMatch[0].length;
+            configContent = configContent.slice(0, insertIdx) + turbopackSnippet + configContent.slice(insertIdx);
+            patched = true;
+          }
+        }
+
+        // Pattern 3: `export default {` (direct export)
+        if (!patched) {
+          const directExportMatch = configContent.match(/export\s+default\s*\{/);
+          if (directExportMatch && directExportMatch.index != null) {
+            const insertIdx = directExportMatch.index + directExportMatch[0].length;
+            configContent = configContent.slice(0, insertIdx) + turbopackSnippet + configContent.slice(insertIdx);
+            patched = true;
+          }
+        }
+
+        // Fallback: append override at end of file
+        if (!patched) {
+          log("Warning: could not find config object pattern — appending turbopack override", true);
+          configContent += `\n// @ts-ignore — turbopack root override appended by design pipeline\nimport { resolve as __resolve } from "path";\nmodule.exports = { ...module.exports, turbopack: { root: __resolve(__dirname, "${relativeRoot}") } };\n`;
+        }
+
         writeFileSync(configPath, configContent);
         log(`Patched ${configPath.split("/").pop()} with turbopack.root`);
       }
@@ -262,15 +311,26 @@ async function prepareMonorepoWorktree(
     }
   }
 
-  // 4. Copy .env files from original project
+  // 4. Copy .env files from both monorepo root and app directory
+  // Root-level .env files first, then app-level (app takes precedence)
+  const envFiles = [".env", ".env.local", ".env.development", ".env.development.local"];
   try {
-    const originalAppDir = originalProjectPath;
-    for (const envFile of [".env", ".env.local", ".env.development", ".env.development.local"]) {
-      const src = join(originalAppDir, envFile);
+    // Copy from original monorepo root → worktree root
+    for (const envFile of envFiles) {
+      const src = join(originalGitRoot, envFile);
+      const dst = join(worktreeRoot, envFile);
+      if (existsSync(src) && !existsSync(dst)) {
+        copyFileSync(src, dst);
+        log(`Copied ${envFile} from monorepo root`);
+      }
+    }
+    // Copy from original app dir → worktree app dir (overrides root if same location)
+    for (const envFile of envFiles) {
+      const src = join(originalProjectPath, envFile);
       const dst = join(worktreeCwd, envFile);
       if (existsSync(src) && !existsSync(dst)) {
         copyFileSync(src, dst);
-        log(`Copied ${envFile} from original project`);
+        log(`Copied ${envFile} from app directory`);
       }
     }
   } catch (err) {
@@ -282,7 +342,7 @@ async function prepareMonorepoWorktree(
 /*  Dev server management                                              */
 /* ------------------------------------------------------------------ */
 
-const PORT_RE = /Local:\s+https?:\/\/[^:]+:(\d+)/;
+const PORT_RE = /(?:localhost:|127\.0\.0\.1:|0\.0\.0\.0:|port\s+|:\s*)(\d{4,5})/i;
 
 function spawnDevServer(cwd: string, port: number, pm: "bun" | "npm"): { proc: ChildProcess; ready: Promise<number> } {
   // Use next dev directly with --port to override any hardcoded port in the dev script
@@ -290,7 +350,7 @@ function spawnDevServer(cwd: string, port: number, pm: "bun" | "npm"): { proc: C
     cwd,
     shell: true,
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, PORT: String(port) },
+    env: cleanEnv({ PORT: String(port), FORCE_COLOR: "0" }),
   });
 
   const ready = new Promise<number>((resolve, reject) => {
@@ -313,15 +373,29 @@ function spawnDevServer(cwd: string, port: number, pm: "bun" | "npm"): { proc: C
 }
 
 function killDevServer(state: DesignPipelineState) {
-  if (state.devServerProcess) {
-    try {
-      state.devServerProcess.kill("SIGTERM");
-      setTimeout(() => {
-        try { state.devServerProcess?.kill("SIGKILL"); } catch {}
-      }, 5000);
-    } catch {}
-    state.devServerProcess = null;
+  const proc = state.devServerProcess;
+  if (!proc) return;
+  state.devServerProcess = null;
+
+  // Kill the process group (negative PID) to catch child processes from shell
+  try {
+    if (proc.pid) process.kill(-proc.pid, "SIGTERM");
+    else proc.kill("SIGTERM");
+  } catch {
+    try { proc.kill("SIGTERM"); } catch {}
   }
+
+  // Fallback SIGKILL after 5s
+  const killTimer = setTimeout(() => {
+    try {
+      if (proc.pid) process.kill(-proc.pid, "SIGKILL");
+      else proc.kill("SIGKILL");
+    } catch {
+      try { proc.kill("SIGKILL"); } catch {}
+    }
+  }, 5000);
+
+  proc.on("close", () => clearTimeout(killTimer));
 }
 
 /* ------------------------------------------------------------------ */
@@ -453,7 +527,7 @@ CRITICAL: Only create/modify files within your current working directory. Do NOT
             model: "opus",
             cwd: childCwd,
             permissionMode: "bypassPermissions",
-            timeoutMs: 0,
+            timeoutMs: 300_000,
             signal: ac.signal,
           });
 
@@ -498,7 +572,14 @@ CRITICAL: Only create/modify files within your current working directory. Do NOT
       .map((r) => r.value);
 
     if (successfulVariants.length === 0) {
-      throw new Error("All variants failed to generate");
+      throw new Error(`All ${variantCount} variants failed to generate`);
+    }
+
+    // Log failed variants
+    const failedVariants = variantResults.filter((r) => r.status === "rejected");
+    for (const f of failedVariants) {
+      const reason = f.status === "rejected" ? (f.reason instanceof Error ? f.reason.message : String(f.reason)) : "unknown";
+      pushLog(runId, "generating", "stderr", `Variant failed: ${reason}`);
     }
 
     pushLog(runId, "generating", "stdout", `${successfulVariants.length}/${variantCount} variants generated successfully.`);
@@ -544,7 +625,7 @@ CRITICAL: Only create/modify files within your current working directory. Do NOT
 
     // Run install from worktree root (monorepo root) so workspace deps resolve
     pushLog(runId, "installing", "stdout", `Running ${pm} install in worktree root...`);
-    const installResult = await execInDir(worktreeRoot, pm, ["install"]);
+    const installResult = await execInDir(worktreeRoot, pm, ["install"], cleanEnv());
     if (installResult.code !== 0) {
       pushLog(runId, "installing", "stderr", `${pm} install stderr: ${installResult.stderr.slice(0, 500)}`);
       // Non-fatal — dev server might still work
@@ -558,6 +639,7 @@ CRITICAL: Only create/modify files within your current working directory. Do NOT
         worktreeRoot,
         worktreeCwd,
         projectPath,
+        gitRoot,
         pm,
         (text, isErr) => pushLog(runId, "installing", isErr ? "stderr" : "stdout", text),
       );
@@ -568,6 +650,9 @@ CRITICAL: Only create/modify files within your current working directory. Do NOT
     // --- Step 5: Dev server ---
     setRunStatus(runId, "dev_server", "dev_server");
     await updateDb(runId, { status: "dev_server", current_step: "dev_server" });
+
+    // Clear stale .next cache before starting dev server
+    await rm(join(worktreeCwd, ".next"), { recursive: true, force: true });
 
     const port = await findFreePort();
     pushLog(runId, "dev_server", "stdout", `Starting dev server on port ${port}...`);
@@ -659,7 +744,7 @@ CRITICAL: Work only within the current working directory.`;
       model: "opus",
       cwd: worktreeCwd,
       permissionMode: "bypassPermissions",
-      timeoutMs: 0,
+      timeoutMs: 300_000,
       signal: ac.signal,
     });
 

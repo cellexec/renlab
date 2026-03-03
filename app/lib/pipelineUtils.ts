@@ -7,9 +7,9 @@ export function stripAnsi(str: string): string {
   return str.replace(ANSI_RE, "").trim();
 }
 
-export function execInDir(cwd: string, command: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+export function execInDir(cwd: string, command: string, args: string[], env?: NodeJS.ProcessEnv): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
-    const proc = spawn(command, args, { cwd, shell: true, stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawn(command, args, { cwd, shell: true, stdio: ["ignore", "pipe", "pipe"], ...(env ? { env } : {}) });
     let stdout = "";
     let stderr = "";
     proc.stdout?.on("data", (d: Buffer) => { stdout += d.toString(); });

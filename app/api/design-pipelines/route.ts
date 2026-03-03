@@ -11,16 +11,30 @@ export async function POST(req: Request) {
     return Response.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  const activeStatuses = ["pending", "parent_worktree", "generating", "merging_variants", "installing", "dev_server", "awaiting_review", "finalizing", "merging_final"];
+
   // Check for active design runs on this spec
-  const { data: active } = await getSupabase()
+  const { data: activeSpec } = await getSupabase()
     .from("design_runs")
     .select("id")
     .eq("specification_id", specificationId)
-    .in("status", ["pending", "parent_worktree", "generating", "merging_variants", "installing", "dev_server", "awaiting_review", "finalizing", "merging_final"])
+    .in("status", activeStatuses)
     .limit(1);
 
-  if (active && active.length > 0) {
+  if (activeSpec && activeSpec.length > 0) {
     return Response.json({ error: "A design pipeline is already running for this specification" }, { status: 409 });
+  }
+
+  // Check for active design runs on this project (would conflict on git branches/worktrees)
+  const { data: activeProject } = await getSupabase()
+    .from("design_runs")
+    .select("id")
+    .eq("project_id", projectId)
+    .in("status", activeStatuses)
+    .limit(1);
+
+  if (activeProject && activeProject.length > 0) {
+    return Response.json({ error: "A design pipeline is already running for this project" }, { status: 409 });
   }
 
   // Get project path
