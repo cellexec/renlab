@@ -11,6 +11,24 @@ import type { PipelineRun, PipelineStatus } from "../pipelines";
 import type { DesignRun, DesignPipelineStatus } from "../design-pipelines";
 
 type ScoreRange = "high" | "mid" | "low" | null;
+type PipelineTypeFilter = "all" | "feature" | "design";
+
+// =============================================================================
+// Unified run type — normalises feature & design runs into one shape
+// =============================================================================
+
+interface UnifiedRun {
+  id: string;
+  type: "feature" | "design";
+  specificationId: string;
+  status: string;
+  createdAt: string;
+  finishedAt: string | null;
+  reviewScore: number | null;
+  iterations: number;
+  variantCount: number;
+  isActive: boolean;
+}
 
 // =============================================================================
 // Display group types + config
@@ -18,13 +36,44 @@ type ScoreRange = "high" | "mid" | "low" | null;
 
 type DisplayGroup = "active" | "success" | "failed" | "cancelled";
 
-const ACTIVE_STATUSES: PipelineStatus[] = ["pending", "worktree", "retrieving", "coding", "reviewing", "merging", "updating"];
+const ACTIVE_FEATURE_STATUSES: PipelineStatus[] = ["pending", "worktree", "retrieving", "coding", "reviewing", "merging", "updating"];
+const ACTIVE_DESIGN_STATUSES: DesignPipelineStatus[] = ["pending", "parent_worktree", "generating", "merging_variants", "installing", "dev_server", "awaiting_review", "finalizing", "merging_final"];
 
-function toDisplayGroup(status: PipelineStatus): DisplayGroup {
-  if (ACTIVE_STATUSES.includes(status)) return "active";
+function toDisplayGroup(status: string): DisplayGroup {
+  if (ACTIVE_FEATURE_STATUSES.includes(status as PipelineStatus) || ACTIVE_DESIGN_STATUSES.includes(status as DesignPipelineStatus)) return "active";
   if (status === "success") return "success";
   if (status === "failed" || status === "rejected") return "failed";
   return "cancelled";
+}
+
+function toUnifiedRun(run: PipelineRun): UnifiedRun {
+  return {
+    id: run.id,
+    type: "feature",
+    specificationId: run.specificationId,
+    status: run.status,
+    createdAt: run.createdAt,
+    finishedAt: run.finishedAt,
+    reviewScore: run.reviewScore,
+    iterations: run.iterations,
+    variantCount: 0,
+    isActive: ACTIVE_FEATURE_STATUSES.includes(run.status),
+  };
+}
+
+function toUnifiedDesignRun(run: DesignRun): UnifiedRun {
+  return {
+    id: run.id,
+    type: "design",
+    specificationId: run.specificationId,
+    status: run.status,
+    createdAt: run.createdAt,
+    finishedAt: run.finishedAt,
+    reviewScore: null,
+    iterations: 0,
+    variantCount: run.variantCount,
+    isActive: ACTIVE_DESIGN_STATUSES.includes(run.status),
+  };
 }
 
 const GROUP_CONFIG: Record<
@@ -67,18 +116,28 @@ const GROUP_CONFIG: Record<
 
 const GROUP_ORDER: DisplayGroup[] = ["active", "success", "failed", "cancelled"];
 
-const STATUS_BADGE: Record<PipelineStatus, { dot: string; label: string; bg: string; text: string }> = {
-  pending:    { dot: "bg-zinc-500",                label: "Pending",    bg: "bg-zinc-500/10",    text: "text-zinc-400" },
-  worktree:   { dot: "bg-amber-500 animate-pulse", label: "Worktree",   bg: "bg-amber-500/10",   text: "text-amber-400" },
-  retrieving: { dot: "bg-teal-500 animate-pulse",  label: "Retrieving", bg: "bg-teal-500/10",    text: "text-teal-400" },
-  coding:     { dot: "bg-indigo-500 animate-pulse", label: "Coding",    bg: "bg-indigo-500/10",  text: "text-indigo-400" },
-  reviewing:  { dot: "bg-violet-500 animate-pulse", label: "Reviewing", bg: "bg-violet-500/10",  text: "text-violet-400" },
-  merging:    { dot: "bg-cyan-500 animate-pulse",   label: "Merging",   bg: "bg-cyan-500/10",    text: "text-cyan-400" },
-  updating:   { dot: "bg-rose-500 animate-pulse",   label: "Updating",  bg: "bg-rose-500/10",    text: "text-rose-400" },
-  success:    { dot: "bg-emerald-500",              label: "Success",   bg: "bg-emerald-500/10", text: "text-emerald-400" },
-  failed:     { dot: "bg-red-500",                  label: "Failed",    bg: "bg-red-500/10",     text: "text-red-400" },
-  cancelled:  { dot: "bg-zinc-500",                 label: "Cancelled", bg: "bg-zinc-500/10",    text: "text-zinc-400" },
-  rejected:   { dot: "bg-red-500",                  label: "Rejected",  bg: "bg-red-500/10",     text: "text-red-400" },
+const STATUS_BADGE: Record<string, { dot: string; label: string; bg: string; text: string }> = {
+  // Feature pipeline statuses
+  pending:          { dot: "bg-zinc-500",                 label: "Pending",          bg: "bg-zinc-500/10",    text: "text-zinc-400" },
+  worktree:         { dot: "bg-amber-500 animate-pulse",  label: "Worktree",         bg: "bg-amber-500/10",   text: "text-amber-400" },
+  retrieving:       { dot: "bg-teal-500 animate-pulse",   label: "Retrieving",       bg: "bg-teal-500/10",    text: "text-teal-400" },
+  coding:           { dot: "bg-indigo-500 animate-pulse",  label: "Coding",           bg: "bg-indigo-500/10",  text: "text-indigo-400" },
+  reviewing:        { dot: "bg-violet-500 animate-pulse",  label: "Reviewing",        bg: "bg-violet-500/10",  text: "text-violet-400" },
+  merging:          { dot: "bg-cyan-500 animate-pulse",    label: "Merging",          bg: "bg-cyan-500/10",    text: "text-cyan-400" },
+  updating:         { dot: "bg-rose-500 animate-pulse",    label: "Updating",         bg: "bg-rose-500/10",    text: "text-rose-400" },
+  success:          { dot: "bg-emerald-500",               label: "Success",          bg: "bg-emerald-500/10", text: "text-emerald-400" },
+  failed:           { dot: "bg-red-500",                   label: "Failed",           bg: "bg-red-500/10",     text: "text-red-400" },
+  cancelled:        { dot: "bg-zinc-500",                  label: "Cancelled",        bg: "bg-zinc-500/10",    text: "text-zinc-400" },
+  rejected:         { dot: "bg-red-500",                   label: "Rejected",         bg: "bg-red-500/10",     text: "text-red-400" },
+  // Design pipeline statuses
+  parent_worktree:  { dot: "bg-amber-500 animate-pulse",  label: "Worktree",         bg: "bg-amber-500/10",   text: "text-amber-400" },
+  generating:       { dot: "bg-indigo-500 animate-pulse",  label: "Generating",       bg: "bg-indigo-500/10",  text: "text-indigo-400" },
+  merging_variants: { dot: "bg-cyan-500 animate-pulse",    label: "Merging Variants", bg: "bg-cyan-500/10",    text: "text-cyan-400" },
+  installing:       { dot: "bg-teal-500 animate-pulse",    label: "Installing",       bg: "bg-teal-500/10",    text: "text-teal-400" },
+  dev_server:       { dot: "bg-blue-500 animate-pulse",    label: "Dev Server",       bg: "bg-blue-500/10",    text: "text-blue-400" },
+  awaiting_review:  { dot: "bg-purple-500 animate-pulse",  label: "Awaiting Review",  bg: "bg-purple-500/10",  text: "text-purple-400" },
+  finalizing:       { dot: "bg-violet-500 animate-pulse",  label: "Finalizing",       bg: "bg-violet-500/10",  text: "text-violet-400" },
+  merging_final:    { dot: "bg-emerald-500 animate-pulse", label: "Final Merge",      bg: "bg-emerald-500/10", text: "text-emerald-400" },
 };
 
 // =============================================================================
@@ -266,7 +325,7 @@ function PipelineRow({
   onCancel,
   style,
 }: {
-  run: PipelineRun;
+  run: UnifiedRun;
   specTitle: string;
   onClick: () => void;
   onCancel: () => void;
@@ -274,8 +333,7 @@ function PipelineRow({
 }) {
   const group = toDisplayGroup(run.status);
   const groupCfg = GROUP_CONFIG[group];
-  const badge = STATUS_BADGE[run.status];
-  const isActive = ACTIVE_STATUSES.includes(run.status);
+  const badge = STATUS_BADGE[run.status] ?? { dot: "bg-zinc-500", label: run.status, bg: "bg-zinc-500/10", text: "text-zinc-400" };
 
   return (
     <div style={style} className="animate-fade-in-up">
@@ -284,7 +342,7 @@ function PipelineRow({
         onClick={onClick}
       >
         <div className="flex items-center gap-4 px-4 py-3">
-          {/* Status + iterations badges */}
+          {/* Status + type tag + extra badges */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span
@@ -293,10 +351,23 @@ function PipelineRow({
                 <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
                 {badge.label}
               </span>
+              {/* Pipeline type tag */}
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                run.type === "design"
+                  ? "text-purple-400/80 bg-purple-500/10 border border-purple-500/15"
+                  : "text-blue-400/80 bg-blue-500/10 border border-blue-500/15"
+              }`}>
+                {run.type}
+              </span>
               {run.iterations > 1 && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-500/10 text-zinc-400">
                   <IconRepeat className="w-3 h-3" />
                   {run.iterations}&times;
+                </span>
+              )}
+              {run.type === "design" && run.variantCount > 0 && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-500/10 text-zinc-400">
+                  {run.variantCount} variant{run.variantCount !== 1 ? "s" : ""}
                 </span>
               )}
             </div>
@@ -348,7 +419,7 @@ function PipelineRow({
           </span>
 
           {/* Cancel button for active runs */}
-          {isActive && (
+          {run.isActive && (
             <div className="flex items-center gap-1 opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 shrink-0">
               <button
                 onClick={(e) => { e.stopPropagation(); onCancel(); }}
@@ -382,18 +453,28 @@ function matchesScoreRange(score: number | null, range: ScoreRange): boolean {
   return score < 50;
 }
 
+const TYPE_FILTER_OPTIONS: { key: PipelineTypeFilter; label: string; color: string; bg: string; text: string }[] = [
+  { key: "all",     label: "All",     color: "bg-zinc-400",   bg: "bg-zinc-500/10",   text: "text-zinc-300" },
+  { key: "feature", label: "Feature", color: "bg-blue-500",   bg: "bg-blue-500/10",   text: "text-blue-300" },
+  { key: "design",  label: "Design",  color: "bg-purple-500", bg: "bg-purple-500/10", text: "text-purple-300" },
+];
+
 function TocSidebar({
   groups,
   activeGroup,
   onNavigate,
   scoreFilter,
   onScoreFilter,
+  typeFilter,
+  onTypeFilter,
 }: {
   groups: { group: DisplayGroup; count: number }[];
   activeGroup: DisplayGroup | null;
   onNavigate: (group: DisplayGroup) => void;
   scoreFilter: ScoreRange;
   onScoreFilter: (range: ScoreRange) => void;
+  typeFilter: PipelineTypeFilter;
+  onTypeFilter: (type: PipelineTypeFilter) => void;
 }) {
   return (
     <div className="w-[200px] shrink-0">
@@ -430,6 +511,34 @@ function TocSidebar({
                     }`}
                   >
                     {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="border-t border-white/[0.06] my-4" />
+
+          {/* Pipeline type filter */}
+          <div className="space-y-1 mb-4">
+            <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+              Pipeline Type
+            </h3>
+            {TYPE_FILTER_OPTIONS.map(({ key, label, color, bg, text }) => {
+              const isSelected = typeFilter === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => onTypeFilter(key)}
+                  className={`flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg transition-all duration-200 ${
+                    isSelected
+                      ? `${bg} border border-white/[0.08]`
+                      : "hover:bg-white/[0.03] border border-transparent"
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${color}`} />
+                  <span className={`text-[11px] ${isSelected ? text + " font-medium" : "text-zinc-500"}`}>
+                    {label}
                   </span>
                 </button>
               );
@@ -491,6 +600,7 @@ export default function PipelinesPage() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<DisplayGroup>>(new Set());
   const [activeGroup, setActiveGroup] = useState<DisplayGroup | null>("active");
   const [scoreFilter, setScoreFilter] = useState<ScoreRange>(null);
+  const [typeFilter, setTypeFilter] = useState<PipelineTypeFilter>("all");
   const [mounted, setMounted] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -545,19 +655,29 @@ export default function PipelinesPage() {
     return () => observers.forEach((o) => o.disconnect());
   }, [mounted, loaded]);
 
-  // Filter runs by search + score range
+  // Merge feature + design runs into unified list, sorted by createdAt desc
+  const allUnifiedRuns = useMemo(() => {
+    const unified: UnifiedRun[] = [
+      ...runs.map(toUnifiedRun),
+      ...designRuns.map(toUnifiedDesignRun),
+    ];
+    unified.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return unified;
+  }, [runs, designRuns]);
+
+  // Filter runs by search + score range + type
   const filteredRuns = useMemo(() => {
-    let result = runs;
+    let result = allUnifiedRuns;
+
+    if (typeFilter !== "all") {
+      result = result.filter((r) => r.type === typeFilter);
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter((r) => {
         const title = specTitleMap.get(r.specificationId) ?? "";
-        return (
-          r.id.toLowerCase().includes(q) ||
-          title.toLowerCase().includes(q) ||
-          (r.worktreeBranch?.toLowerCase().includes(q) ?? false)
-        );
+        return r.id.toLowerCase().includes(q) || title.toLowerCase().includes(q);
       });
     }
 
@@ -566,11 +686,11 @@ export default function PipelinesPage() {
     }
 
     return result;
-  }, [searchQuery, runs, specTitleMap, scoreFilter]);
+  }, [searchQuery, allUnifiedRuns, specTitleMap, scoreFilter, typeFilter]);
 
   // Group runs
   const groupedRuns = useMemo(() => {
-    const map: Record<DisplayGroup, PipelineRun[]> = {
+    const map: Record<DisplayGroup, UnifiedRun[]> = {
       active: [],
       success: [],
       failed: [],
@@ -580,23 +700,23 @@ export default function PipelinesPage() {
     return map;
   }, [filteredRuns]);
 
-  // Stats
+  // Stats (across all unified runs)
   const stats = useMemo(() => {
-    const total = runs.length;
-    const successCount = runs.filter((r) => r.status === "success").length;
-    const failedCount = runs.filter((r) => r.status === "failed" || r.status === "rejected").length;
+    const total = allUnifiedRuns.length;
+    const successCount = allUnifiedRuns.filter((r) => r.status === "success").length;
+    const failedCount = allUnifiedRuns.filter((r) => r.status === "failed" || r.status === "rejected").length;
     const successRate = successCount + failedCount > 0
       ? Math.round((successCount / (successCount + failedCount)) * 100)
       : 0;
-    const withDuration = runs.filter((r) => r.finishedAt);
+    const withDuration = allUnifiedRuns.filter((r) => r.finishedAt);
     const avgDurationMs =
       withDuration.length > 0
         ? withDuration.reduce((s, r) => s + (new Date(r.finishedAt!).getTime() - new Date(r.createdAt).getTime()), 0) / withDuration.length
         : 0;
     const avgDurationMin = Math.round(avgDurationMs / 60000);
-    const activeNow = runs.filter((r) => ACTIVE_STATUSES.includes(r.status)).length;
+    const activeNow = allUnifiedRuns.filter((r) => r.isActive).length;
     return { total, successRate, avgDurationMin, activeNow };
-  }, [runs]);
+  }, [allUnifiedRuns]);
 
   const toggleGroup = useCallback((group: DisplayGroup) => {
     setCollapsedGroups((prev) => {
@@ -655,7 +775,7 @@ export default function PipelinesPage() {
 
           {!loaded || !designLoaded ? (
             <div className="flex h-64 items-center justify-center text-zinc-500">Loading...</div>
-          ) : runs.length === 0 && designRuns.length === 0 ? (
+          ) : allUnifiedRuns.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
               <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-2xl p-12 text-center">
                 <svg className="h-12 w-12 text-zinc-600 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
@@ -735,6 +855,22 @@ export default function PipelinesPage() {
                 </div>
               )}
 
+              {/* Active type filter chip */}
+              {typeFilter !== "all" && (
+                <div className="mb-4 flex items-center gap-2 animate-fade-in-up">
+                  <span className="text-[11px] text-zinc-500">Filtering by type:</span>
+                  <button
+                    onClick={() => setTypeFilter("all")}
+                    className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors ${
+                      typeFilter === "feature" ? "bg-blue-500/10 text-blue-300" : "bg-purple-500/10 text-purple-300"
+                    }`}
+                  >
+                    {typeFilter}
+                    <IconX className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+
               {/* Content area: list + TOC sidebar */}
               <div className="flex gap-6">
                 {/* Main pipeline list */}
@@ -780,8 +916,8 @@ export default function PipelinesPage() {
                                 key={run.id}
                                 run={run}
                                 specTitle={specTitleMap.get(run.specificationId) ?? "Untitled Spec"}
-                                onClick={() => router.push(`/pipelines/${run.id}`)}
-                                onCancel={() => cancelRun(run.id)}
+                                onClick={() => router.push(run.type === "design" ? `/design-pipelines/${run.id}` : `/pipelines/${run.id}`)}
+                                onCancel={() => run.type === "design" ? cancelDesignRun(run.id) : cancelRun(run.id)}
                                 style={{ animationDelay: `${300 + idx * 60}ms` }}
                               />
                             ))}
@@ -791,85 +927,12 @@ export default function PipelinesPage() {
                     );
                   })}
 
-                  {/* Design pipeline runs */}
-                  {designRuns.length > 0 && (
-                    <div className="mb-4">
-                      <div className="flex items-center gap-2 px-3 py-2 mb-1">
-                        <span className="w-2 h-2 rounded-full bg-purple-500" />
-                        <span className="text-[13px] font-semibold text-purple-400">
-                          Design Pipelines
-                        </span>
-                        <span className="text-[11px] text-zinc-500 font-mono">
-                          ({designRuns.length})
-                        </span>
-                      </div>
-                      <div className="backdrop-blur-xl bg-white/[0.01] border border-white/[0.06] rounded-xl overflow-hidden">
-                        {designRuns.map((dr, idx) => {
-                          const isDesignActive = !["success", "failed", "cancelled"].includes(dr.status);
-                          return (
-                            <div
-                              key={dr.id}
-                              className="animate-fade-in-up"
-                              style={{ animationDelay: `${300 + idx * 60}ms` }}
-                            >
-                              <div
-                                className="group relative border-l-[3px] border-l-purple-500 bg-white/[0.015] hover:bg-white/[0.04] border-b border-white/[0.04] transition-all duration-200 cursor-pointer"
-                                onClick={() => router.push(`/design-pipelines/${dr.id}`)}
-                              >
-                                <div className="flex items-center gap-4 px-4 py-3">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
-                                        <span className={`w-1.5 h-1.5 rounded-full bg-purple-500 ${isDesignActive ? "animate-pulse" : ""}`} />
-                                        {dr.status.replace(/_/g, " ")}
-                                      </span>
-                                      <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-500/10 text-zinc-400">
-                                        {dr.variantCount} variants
-                                      </span>
-                                    </div>
-                                    <Link
-                                      href={`/specifications/${dr.specificationId}`}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="inline-flex items-center gap-1 text-[12px] text-zinc-500 hover:text-zinc-300 mt-0.5 truncate max-w-full transition-colors"
-                                    >
-                                      <svg className="w-3 h-3 shrink-0 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                      </svg>
-                                      <span className="truncate">{specTitleMap.get(dr.specificationId) ?? "Untitled Spec"}</span>
-                                    </Link>
-                                  </div>
-                                  <span className="text-[12px] text-zinc-400 font-mono tabular-nums w-[72px] text-right shrink-0">
-                                    {formatDuration(dr.createdAt, dr.finishedAt)}
-                                  </span>
-                                  <span className="text-[11px] text-zinc-500 w-[52px] text-right shrink-0">
-                                    {relativeTime(dr.createdAt)}
-                                  </span>
-                                  {isDesignActive && (
-                                    <div className="flex items-center gap-1 opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 shrink-0">
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); cancelDesignRun(dr.id); }}
-                                        className="p-1.5 rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-red-400 transition-colors"
-                                        title="Cancel"
-                                      >
-                                        <IconX />
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
                   {/* Empty search state */}
-                  {filteredRuns.length === 0 && designRuns.length === 0 && (
+                  {filteredRuns.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-20 text-center">
                       <IconSearch className="w-8 h-8 text-zinc-600 mb-3" />
                       <p className="text-zinc-400 text-[14px]">No pipeline runs found</p>
-                      <p className="text-zinc-600 text-[12px] mt-1">Try adjusting your search query</p>
+                      <p className="text-zinc-600 text-[12px] mt-1">Try adjusting your search or filters</p>
                     </div>
                   )}
                 </div>
@@ -881,6 +944,8 @@ export default function PipelinesPage() {
                   onNavigate={navigateToGroup}
                   scoreFilter={scoreFilter}
                   onScoreFilter={setScoreFilter}
+                  typeFilter={typeFilter}
+                  onTypeFilter={setTypeFilter}
                 />
               </div>
             </>
