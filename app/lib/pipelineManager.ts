@@ -1,7 +1,8 @@
-import { spawn } from "child_process";
 import { stream } from "node-claude-sdk";
 import { getSupabase } from "./supabase";
 import { hasKnowledgeBase, getRelevantKnowledge } from "./knowledgeManager";
+import { stripAnsi, execInDir, formatToolDetail, resolveGitRoot } from "./pipelineUtils";
+import { consumeAgentStream as consumeAgentStreamGeneric } from "./pipelineUtils";
 import type {
   PipelineStatus,
   PipelineStep,
@@ -23,12 +24,6 @@ interface PipelineState {
 }
 
 const MAX_LOG_LINES = 2000;
-
-// eslint-disable-next-line no-control-regex
-const ANSI_RE = /\x1b\[[\?]?[0-9;]*[a-zA-Z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][0-9A-B]/g;
-function stripAnsi(str: string): string {
-  return str.replace(ANSI_RE, "").trim();
-}
 
 // Survive HMR + route handler rebundles
 const GLOBAL_KEY = Symbol.for("__pipelineRuns__");
@@ -108,18 +103,6 @@ async function persistLogs(runId: string) {
   await getSupabase().from("pipeline_runs").update({ logs: state.logs, step_timings: state.stepTimings }).eq("id", runId);
 }
 
-function execInDir(cwd: string, command: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
-  return new Promise((resolve) => {
-    const proc = spawn(command, args, { cwd, shell: true, stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    proc.stdout?.on("data", (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr?.on("data", (d: Buffer) => { stderr += d.toString(); });
-    proc.on("close", (code) => resolve({ code: code ?? -1, stdout, stderr }));
-    proc.on("error", () => resolve({ code: -1, stdout, stderr }));
-  });
-}
-
 function parseReviewJson(raw: string | undefined | null): { score: number; summary: string; issues: string[] } | null {
   if (!raw) return null;
   // Try direct parse
@@ -149,95 +132,17 @@ function parseReviewJson(raw: string | undefined | null): { score: number; summa
   return null;
 }
 
-function formatToolDetail(name: string, input: Record<string, unknown>): string {
-  if (input.file_path) return ` ${input.file_path}`;
-  if (name === "Bash" && input.command) return ` $ ${String(input.command).slice(0, 120)}`;
-  if (input.description) return ` ${String(input.description).slice(0, 120)}`;
-  if (input.subject) return ` ${String(input.subject).slice(0, 120)}`;
-  if (input.pattern) return ` ${input.pattern}`;
-  if (input.query) return ` ${String(input.query).slice(0, 120)}`;
-  if (input.prompt) return ` ${String(input.prompt).slice(0, 120)}`;
-  return "";
-}
-
 async function consumeAgentStream(
   agentStream: AsyncIterable<import("node-claude-sdk").StreamMessage>,
   runId: string,
   step: PipelineStep,
   signal?: AbortSignal,
 ): Promise<{ resultMessage: import("node-claude-sdk").ResultMessage | null; resultText: string }> {
-  let textBuffer = "";
-  let currentToolName: string | null = null;
-  let toolInputJson = "";
-  let toolCallCounter = 0;
-  let thinkingCounter = 0;
-  let resultMessage: import("node-claude-sdk").ResultMessage | null = null;
-  let resultText = "";
-
-  function flushText() {
-    if (!textBuffer) return;
-    for (const line of textBuffer.split("\n")) {
-      if (line.trim()) pushLog(runId, step, "stdout", line);
-    }
-    textBuffer = "";
-  }
-
-  for await (const msg of agentStream) {
-    if (signal?.aborted) throw new Error("Cancelled");
-    if (msg.type === "result") {
-      resultMessage = msg;
-    } else if (msg.type === "stream_event") {
-      const { event } = msg;
-
-      if (event.type === "content_block_start") {
-        if (event.content_block?.type === "tool_use" && event.content_block.name) {
-          flushText();
-          currentToolName = event.content_block.name;
-          toolInputJson = "";
-          toolCallCounter++;
-          pushLog(runId, step, "stdout", `[${currentToolName}]`, `tool-${toolCallCounter}-start`);
-        } else {
-          currentToolName = null;
-        }
-      } else if (event.type === "content_block_delta") {
-        if (event.delta?.type === "text_delta" && event.delta.text) {
-          resultText += event.delta.text;
-          textBuffer += event.delta.text;
-          const lastNl = textBuffer.lastIndexOf("\n");
-          if (lastNl !== -1) {
-            const complete = textBuffer.slice(0, lastNl);
-            textBuffer = textBuffer.slice(lastNl + 1);
-            for (const line of complete.split("\n")) {
-              if (line.trim()) pushLog(runId, step, "stdout", line);
-            }
-          }
-        } else if (event.delta?.type === "input_json_delta") {
-          const partial = (event.delta as Record<string, string>).partial_json ?? event.delta.text ?? "";
-          toolInputJson += partial;
-        }
-      } else if (event.type === "content_block_stop") {
-        if (currentToolName) {
-          let detail = "";
-          try {
-            const input = JSON.parse(toolInputJson) as Record<string, unknown>;
-            detail = formatToolDetail(currentToolName, input);
-          } catch {}
-          pushLog(runId, step, "stdout", `[${currentToolName}]${detail}`, `tool-${toolCallCounter}-end`);
-          currentToolName = null;
-          toolInputJson = "";
-          thinkingCounter++;
-          pushLog(runId, step, "stdout", "Thinking...", `thinking-${thinkingCounter}`);
-        } else {
-          flushText();
-        }
-      }
-    } else if (msg.type === "assistant" && msg.message.stop_reason) {
-      flushText();
-    }
-  }
-  flushText();
-
-  return { resultMessage, resultText };
+  return consumeAgentStreamGeneric(
+    agentStream,
+    (streamType, text, toolCallId) => pushLog(runId, step, streamType, text, toolCallId),
+    signal,
+  );
 }
 
 async function runReview(
@@ -366,26 +271,7 @@ export async function startPipeline(
   const shortId = runId.slice(0, 8);
   const branchName = `pipeline/${shortId}`;
 
-  // Resolve git repo root — worktrees must be created at repo root level
-  // because `git worktree add` checks out the entire repo tree.
-  // Walk up from projectPath to find a git root with actual commits,
-  // handling stray nested .git dirs (e.g., empty `git init` in a monorepo subdir).
-  const gitRoot = await (async () => {
-    let dir = projectPath;
-    while (true) {
-      const toplevel = await execInDir(dir, "git", ["rev-parse", "--show-toplevel"]);
-      if (toplevel.code !== 0) break;
-      const root = toplevel.stdout.trim();
-      // Check if this git root has any commits
-      const hasCommits = await execInDir(root, "git", ["rev-parse", "HEAD"]);
-      if (hasCommits.code === 0) return root;
-      // No commits — try parent directory (skip this stray .git)
-      const parent = root.replace(/\/[^/]+$/, "");
-      if (parent === root || !parent) break;
-      dir = parent;
-    }
-    throw new Error(`No git repository with commits found from ${projectPath}`);
-  })();
+  const gitRoot = await resolveGitRoot(projectPath);
 
   // Compute relative path from git root to project (e.g., "packages/renlab")
   // so we can set the agent CWD to the correct subdir within the worktree

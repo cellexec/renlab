@@ -127,6 +127,8 @@ create table specifications (
   id          uuid primary key default gen_random_uuid(),
   project_id  uuid references projects(id) on delete set null,
   title       text not null,
+  type        text not null default 'feature'
+              constraint chk_specification_type check (type in ('feature', 'ui-refactor')),
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
@@ -175,3 +177,54 @@ create table pipeline_runs (
 alter table pipeline_runs enable row level security;
 create policy "allow all" on pipeline_runs for all using (true) with check (true);
 alter publication supabase_realtime add table pipeline_runs;
+
+-- Design runs table
+create table design_runs (
+  id                   uuid primary key default gen_random_uuid(),
+  project_id           uuid not null references projects(id) on delete cascade,
+  specification_id     uuid not null references specifications(id) on delete cascade,
+  spec_version_id      uuid not null references specification_versions(id) on delete cascade,
+  status               text not null default 'pending'
+                       check (status in ('pending','parent_worktree','generating',
+                         'merging_variants','installing','dev_server','awaiting_review',
+                         'finalizing','merging_final','success','failed','cancelled')),
+  current_step         text check (current_step in ('parent_worktree','generating',
+                         'merging_variants','installing','dev_server','awaiting_review',
+                         'finalizing','merging_final')),
+  parent_branch        text,
+  parent_worktree_path text,
+  dev_server_port      integer,
+  variant_count        integer not null default 2,
+  target_path          text,
+  error_message        text,
+  logs                 jsonb not null default '[]',
+  step_timings         jsonb not null default '{}',
+  created_at           timestamptz not null default now(),
+  finished_at          timestamptz
+);
+
+alter table design_runs enable row level security;
+create policy "allow all" on design_runs for all using (true) with check (true);
+alter publication supabase_realtime add table design_runs;
+
+-- Design variants table
+create table design_variants (
+  id              uuid primary key default gen_random_uuid(),
+  design_run_id   uuid not null references design_runs(id) on delete cascade,
+  variant_number  integer not null,
+  status          text not null default 'pending'
+                  check (status in ('pending','generating','merging','merged','failed')),
+  branch_name     text,
+  worktree_path   text,
+  brief           text,
+  agent_id        uuid references agents(id) on delete set null,
+  error_message   text,
+  created_at      timestamptz not null default now(),
+  finished_at     timestamptz,
+  constraint uq_design_variant unique (design_run_id, variant_number)
+);
+
+alter table design_variants enable row level security;
+create policy "allow all" on design_variants for all using (true) with check (true);
+alter publication supabase_realtime add table design_variants;
+create index idx_design_variants_run on design_variants(design_run_id);

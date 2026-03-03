@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useProjectContext } from "../components/ProjectContext";
 import { usePipelineStore } from "../hooks/usePipelineStore";
+import { useDesignPipelineStore } from "../hooks/useDesignPipelineStore";
 import { useSpecificationStore } from "../hooks/useSpecificationStore";
 import type { PipelineRun, PipelineStatus } from "../pipelines";
+import type { DesignRun, DesignPipelineStatus } from "../design-pipelines";
 
 type ScoreRange = "high" | "mid" | "low" | null;
 
@@ -482,6 +484,7 @@ export default function PipelinesPage() {
   const router = useRouter();
   const { activeProject } = useProjectContext();
   const { runs, loaded, cancelRun } = usePipelineStore(activeProject?.id ?? null);
+  const { runs: designRuns, loaded: designLoaded, cancelRun: cancelDesignRun } = useDesignPipelineStore(activeProject?.id ?? null);
   const { specifications } = useSpecificationStore(activeProject?.id ?? null);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -650,9 +653,9 @@ export default function PipelinesPage() {
             </div>
           )}
 
-          {!loaded ? (
+          {!loaded || !designLoaded ? (
             <div className="flex h-64 items-center justify-center text-zinc-500">Loading...</div>
-          ) : runs.length === 0 ? (
+          ) : runs.length === 0 && designRuns.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
               <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-2xl p-12 text-center">
                 <svg className="h-12 w-12 text-zinc-600 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
@@ -788,8 +791,81 @@ export default function PipelinesPage() {
                     );
                   })}
 
+                  {/* Design pipeline runs */}
+                  {designRuns.length > 0 && (
+                    <div className="mb-4">
+                      <div className="flex items-center gap-2 px-3 py-2 mb-1">
+                        <span className="w-2 h-2 rounded-full bg-purple-500" />
+                        <span className="text-[13px] font-semibold text-purple-400">
+                          Design Pipelines
+                        </span>
+                        <span className="text-[11px] text-zinc-500 font-mono">
+                          ({designRuns.length})
+                        </span>
+                      </div>
+                      <div className="backdrop-blur-xl bg-white/[0.01] border border-white/[0.06] rounded-xl overflow-hidden">
+                        {designRuns.map((dr, idx) => {
+                          const isDesignActive = !["success", "failed", "cancelled"].includes(dr.status);
+                          return (
+                            <div
+                              key={dr.id}
+                              className="animate-fade-in-up"
+                              style={{ animationDelay: `${300 + idx * 60}ms` }}
+                            >
+                              <div
+                                className="group relative border-l-[3px] border-l-purple-500 bg-white/[0.015] hover:bg-white/[0.04] border-b border-white/[0.04] transition-all duration-200 cursor-pointer"
+                                onClick={() => router.push(`/design-pipelines/${dr.id}`)}
+                              >
+                                <div className="flex items-center gap-4 px-4 py-3">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
+                                        <span className={`w-1.5 h-1.5 rounded-full bg-purple-500 ${isDesignActive ? "animate-pulse" : ""}`} />
+                                        {dr.status.replace(/_/g, " ")}
+                                      </span>
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-500/10 text-zinc-400">
+                                        {dr.variantCount} variants
+                                      </span>
+                                    </div>
+                                    <Link
+                                      href={`/specifications/${dr.specificationId}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-1 text-[12px] text-zinc-500 hover:text-zinc-300 mt-0.5 truncate max-w-full transition-colors"
+                                    >
+                                      <svg className="w-3 h-3 shrink-0 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                      </svg>
+                                      <span className="truncate">{specTitleMap.get(dr.specificationId) ?? "Untitled Spec"}</span>
+                                    </Link>
+                                  </div>
+                                  <span className="text-[12px] text-zinc-400 font-mono tabular-nums w-[72px] text-right shrink-0">
+                                    {formatDuration(dr.createdAt, dr.finishedAt)}
+                                  </span>
+                                  <span className="text-[11px] text-zinc-500 w-[52px] text-right shrink-0">
+                                    {relativeTime(dr.createdAt)}
+                                  </span>
+                                  {isDesignActive && (
+                                    <div className="flex items-center gap-1 opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 shrink-0">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); cancelDesignRun(dr.id); }}
+                                        className="p-1.5 rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-red-400 transition-colors"
+                                        title="Cancel"
+                                      >
+                                        <IconX />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Empty search state */}
-                  {filteredRuns.length === 0 && (
+                  {filteredRuns.length === 0 && designRuns.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-20 text-center">
                       <IconSearch className="w-8 h-8 text-zinc-600 mb-3" />
                       <p className="text-zinc-400 text-[14px]">No pipeline runs found</p>

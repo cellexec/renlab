@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getSupabase } from "../lib/supabase";
-import type { Specification, SpecificationVersion, SpecificationStatus } from "../specifications";
+import type { Specification, SpecificationVersion, SpecificationStatus, SpecificationType } from "../specifications";
 
 function toSpec(row: Record<string, unknown>): Specification {
   return {
@@ -10,6 +10,7 @@ function toSpec(row: Record<string, unknown>): Specification {
     projectId: (row.project_id as string) ?? null,
     title: row.title as string,
     status: (row.status as SpecificationStatus) ?? "draft",
+    type: (row.type as SpecificationType) ?? "feature",
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -118,11 +119,12 @@ export function useSpecificationStore(projectId: string | null = null) {
   }, [projectId]);
 
   const createSpecification = useCallback(
-    async (title: string, projectId?: string): Promise<string> => {
+    async (title: string, projectId?: string, type: SpecificationType = "feature"): Promise<string> => {
       const { data, error } = await getSupabase()
         .from("specifications")
         .insert({
           title,
+          type,
           ...(projectId ? { project_id: projectId } : {}),
         })
         .select("id")

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useAgentStore } from "../hooks/useAgentStore";
 import { useSessionStore } from "../hooks/useSessionStore";
 import { useProjectContext } from "./ProjectContext";
-import type { Message, ContentBlock } from "../hooks/useSessionStore";
+import type { Message, ContentBlock, AskQuestion } from "../hooks/useSessionStore";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { parseSpecBlocks, hasSpecBlocks } from "../lib/parseSpecBlocks";
@@ -269,6 +269,22 @@ export function AgentChat({ agentName, context, onApplySpec, initialMessage, cla
                 messagesRef.current = updated;
                 updateMessages(clientId, updated);
               }
+            } else if (parsed.type === "ask_user_question" && Array.isArray(parsed.questions)) {
+              const current = messagesRef.current;
+              const last = current[current.length - 1];
+              if (last?.role === "assistant") {
+                const blocks: ContentBlock[] = [
+                  ...(last.blocks ?? []),
+                  { type: "ask_user_question", questions: parsed.questions as AskQuestion[] },
+                ];
+                const updated = current.map((msg, idx) =>
+                  idx === current.length - 1
+                    ? { ...msg, blocks }
+                    : msg
+                );
+                messagesRef.current = updated;
+                updateMessages(clientId, updated);
+              }
             } else if (parsed.text && !parsed.type) {
               // Legacy: plain { text } events without .type
               const current = messagesRef.current;
@@ -393,6 +409,13 @@ export function AgentChat({ agentName, context, onApplySpec, initialMessage, cla
                         <div key={bi} className="prose prose-invert prose-sm max-w-none">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{block.text}</ReactMarkdown>
                         </div>
+                      ) : block.type === "ask_user_question" ? (
+                        <AskUserQuestionBlock
+                          key={bi}
+                          questions={block.questions}
+                          onAnswer={(answer) => send(answer)}
+                          disabled={isStreaming}
+                        />
                       ) : (
                         <div
                           key={bi}
@@ -470,6 +493,120 @@ export function AgentChat({ agentName, context, onApplySpec, initialMessage, cla
           </button>
         </form>
       </div>
+    </div>
+  );
+}
+
+/** Renders an interactive question from the agent's AskUserQuestion tool */
+function AskUserQuestionBlock({
+  questions,
+  onAnswer,
+  disabled,
+}: {
+  questions: AskQuestion[];
+  onAnswer: (answer: string) => void;
+  disabled: boolean;
+}) {
+  const [selections, setSelections] = useState<Record<number, string[]>>({});
+  const [answered, setAnswered] = useState(false);
+
+  const toggleOption = (qi: number, label: string, multiSelect: boolean) => {
+    setSelections((prev) => {
+      const current = prev[qi] ?? [];
+      if (multiSelect) {
+        return {
+          ...prev,
+          [qi]: current.includes(label)
+            ? current.filter((l) => l !== label)
+            : [...current, label],
+        };
+      }
+      return { ...prev, [qi]: [label] };
+    });
+  };
+
+  const handleSubmit = () => {
+    const parts: string[] = [];
+    for (let qi = 0; qi < questions.length; qi++) {
+      const q = questions[qi];
+      const sel = selections[qi] ?? [];
+      if (sel.length > 0) {
+        parts.push(`${q.header}: ${sel.join(", ")}`);
+      }
+    }
+    if (parts.length === 0) return;
+    setAnswered(true);
+    onAnswer(parts.join("\n"));
+  };
+
+  // Auto-submit for single-select single-question
+  const handleSingleSelect = (qi: number, label: string) => {
+    if (questions.length === 1 && !questions[0].multiSelect) {
+      setSelections({ [qi]: [label] });
+      setAnswered(true);
+      onAnswer(`${questions[0].header}: ${label}`);
+      return;
+    }
+    toggleOption(qi, label, questions[qi].multiSelect);
+  };
+
+  if (answered) {
+    const summary = Object.entries(selections)
+      .map(([qi, sel]) => `${questions[Number(qi)].header}: ${sel.join(", ")}`)
+      .join(" | ");
+    return (
+      <div className="my-2 rounded-lg border border-blue-700/40 bg-blue-950/20 px-3 py-2 text-xs text-blue-300">
+        Answered: {summary}
+      </div>
+    );
+  }
+
+  return (
+    <div className="my-2 space-y-3">
+      {questions.map((q, qi) => (
+        <div key={qi} className="rounded-lg border border-zinc-700 bg-zinc-900/50 p-3">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="rounded bg-zinc-700 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300 uppercase tracking-wider">
+              {q.header}
+            </span>
+            {q.multiSelect && (
+              <span className="text-[10px] text-zinc-500">Select multiple</span>
+            )}
+          </div>
+          <p className="mb-2.5 text-sm text-zinc-200">{q.question}</p>
+          <div className="flex flex-wrap gap-2">
+            {q.options.map((opt) => {
+              const selected = (selections[qi] ?? []).includes(opt.label);
+              return (
+                <button
+                  key={opt.label}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => handleSingleSelect(qi, opt.label)}
+                  title={opt.description}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    selected
+                      ? "border-blue-500 bg-blue-600/20 text-blue-300"
+                      : "border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      {(questions.length > 1 || questions[0]?.multiSelect) && (
+        <button
+          type="button"
+          disabled={disabled || Object.keys(selections).length === 0}
+          onClick={handleSubmit}
+          className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Submit
+        </button>
+      )}
     </div>
   );
 }

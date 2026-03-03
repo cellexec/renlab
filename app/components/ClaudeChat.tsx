@@ -265,6 +265,15 @@ export function ClaudeChat({
                       <span key={bi} className="whitespace-pre-wrap">
                         {block.text}
                       </span>
+                    ) : block.type === "ask_user_question" ? (
+                      <div
+                        key={bi}
+                        className="my-1.5 rounded border border-blue-700/40 bg-blue-950/20 px-2.5 py-1.5 text-xs text-blue-300"
+                      >
+                        {block.questions.map((q, qi) => (
+                          <div key={qi}>{q.question}</div>
+                        ))}
+                      </div>
                     ) : (
                       <div
                         key={bi}

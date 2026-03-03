@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 
 type ContentBlock =
   | { type: "text"; text: string }
-  | { type: "tool_use"; name: string; detail: string };
+  | { type: "tool_use"; name: string; detail: string }
+  | { type: "ask_user_question"; questions: unknown[] };
 
 function formatToolDetail(
   name: string,
@@ -153,23 +154,38 @@ export async function POST(req: Request) {
           } else if (event.type === "content_block_stop") {
             if (currentToolName) {
               let detail = "";
+              let parsedInput: Record<string, unknown> = {};
               try {
-                const input = JSON.parse(toolInputJson) as Record<
+                parsedInput = JSON.parse(toolInputJson) as Record<
                   string,
                   unknown
                 >;
-                detail = formatToolDetail(currentToolName, input);
+                detail = formatToolDetail(currentToolName, parsedInput);
               } catch {}
-              blocks.push({
-                type: "tool_use",
-                name: currentToolName,
-                detail,
-              });
-              controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({ type: "tool_use", name: currentToolName, detail })}\n\n`
-                )
-              );
+
+              if (currentToolName === "AskUserQuestion" && Array.isArray(parsedInput.questions)) {
+                const block = {
+                  type: "ask_user_question" as const,
+                  questions: parsedInput.questions,
+                };
+                blocks.push(block);
+                controller.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify(block)}\n\n`
+                  )
+                );
+              } else {
+                blocks.push({
+                  type: "tool_use",
+                  name: currentToolName,
+                  detail,
+                });
+                controller.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify({ type: "tool_use", name: currentToolName, detail })}\n\n`
+                  )
+                );
+              }
               flushDb();
               currentToolName = null;
               toolInputJson = "";

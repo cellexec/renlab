@@ -7,8 +7,10 @@ import { MarkdownEditor } from "../../components/MarkdownEditor";
 import { AgentChat } from "../../components/AgentChat";
 import { VersionHistory } from "../../components/VersionHistory";
 import { PipelineTriggerButton } from "../../components/PipelineTriggerButton";
+import { DesignPipelineTriggerButton } from "../../components/DesignPipelineTriggerButton";
 import { useSpecificationStore } from "../../hooks/useSpecificationStore";
 import { usePipelineStore } from "../../hooks/usePipelineStore";
+import { useDesignPipelineStore } from "../../hooks/useDesignPipelineStore";
 import { useProjectContext } from "../../components/ProjectContext";
 import type { SpecificationStatus } from "../../specifications";
 
@@ -124,6 +126,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
   const initialContentRef = useRef("");
   const initializedRef = useRef(false);
   const { hasActiveRun, getActiveRunId, triggerPipeline } = usePipelineStore(activeProject?.id ?? null);
+  const { hasActiveRun: hasActiveDesignRun, getActiveRunId: getActiveDesignRunId, triggerDesignPipeline } = useDesignPipelineStore(activeProject?.id ?? null);
 
   const spec = specifications.find((s) => s.id === id);
   const versions = getVersions(id);
@@ -168,6 +171,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
   };
 
   const activeRunId = getActiveRunId(id);
+  const activeDesignRunId = getActiveDesignRunId(id);
 
   /* ---------- Loading state ---------- */
   if (!loaded) {
@@ -334,6 +338,20 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                   >
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
                     View Pipeline
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-4.5h6m0 0v6m0-6L9.75 14.25" />
+                    </svg>
+                  </Link>
+                )}
+
+                {/* Design pipeline link */}
+                {activeDesignRunId && (
+                  <Link
+                    href={`/design-pipelines/${activeDesignRunId}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-purple-400/20 bg-purple-400/10 backdrop-blur-md px-3 py-1 text-xs font-medium text-purple-300 transition-all hover:bg-purple-400/20 hover:border-purple-400/30"
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
+                    View Design Pipeline
                     <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-4.5h6m0 0v6m0-6L9.75 14.25" />
                     </svg>
@@ -509,8 +527,8 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
           {/* Divider */}
           <div className="h-5 w-px bg-white/[0.06]" />
 
-          {/* Pipeline trigger */}
-          {activeProject && editable && (
+          {/* Pipeline trigger — conditional on spec type */}
+          {activeProject && editable && spec.type === "feature" && (
             <div className="flex items-center">
               <PipelineTriggerButton
                 specificationId={id}
@@ -522,6 +540,19 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                 hasActiveRun={hasActiveRun(id)}
                 activeRunId={getActiveRunId(id)}
                 onTrigger={triggerPipeline}
+              />
+            </div>
+          )}
+          {activeProject && editable && spec.type === "ui-refactor" && (
+            <div className="flex items-center">
+              <DesignPipelineTriggerButton
+                specificationId={id}
+                specVersionId={latestVersion?.id ?? null}
+                specContent={content}
+                specTitle={title}
+                hasActiveRun={hasActiveDesignRun(id)}
+                activeRunId={getActiveDesignRunId(id)}
+                onTrigger={triggerDesignPipeline}
               />
             </div>
           )}

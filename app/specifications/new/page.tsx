@@ -7,10 +7,11 @@ import { useSpecificationStore } from "../../hooks/useSpecificationStore";
 import { useProjectContext } from "../../components/ProjectContext";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { SpecificationType } from "../../specifications";
 
-/** Try to extract a title from "# Feature: Name" or "# Name" */
+/** Try to extract a title from "# Feature: Name" or "# Name" or "# UI Refactor: Name" */
 function extractTitle(specContent: string): string {
-  const match = specContent.match(/^#\s+(?:Feature:\s*)?(.+)$/m);
+  const match = specContent.match(/^#\s+(?:(?:Feature|UI Refactor):\s*)?(.+)$/m);
   return match ? match[1].trim() : "";
 }
 
@@ -23,6 +24,7 @@ export default function NewSpecificationPage() {
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [initialMessage, setInitialMessage] = useState<string | undefined>();
+  const [specType, setSpecType] = useState<SpecificationType>("feature");
 
   // Read pre-composed message from sessionStorage when arriving from review issues
   useEffect(() => {
@@ -48,7 +50,7 @@ export default function NewSpecificationPage() {
     if (!title.trim() || !content.trim()) return;
     setSaving(true);
     try {
-      const specId = await createSpecification(title.trim(), activeProjectId ?? undefined);
+      const specId = await createSpecification(title.trim(), activeProjectId ?? undefined, specType);
       await saveVersion(specId, content, "Initial version");
       router.push(`/specifications/${specId}`);
     } catch {
@@ -65,10 +67,37 @@ export default function NewSpecificationPage() {
           <p className="mt-1 text-sm text-zinc-500">
             {specReady
               ? "Review the generated spec, then save"
-              : "Describe your feature — the agent will interview you to understand it"}
+              : specType === "feature"
+              ? "Describe your feature — the agent will interview you to understand it"
+              : "Describe the UI you want to redesign — the agent will plan variant generation"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          {/* Type selector */}
+          <div className="flex rounded-lg border border-zinc-700 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setSpecType("feature")}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                specType === "feature"
+                  ? "bg-zinc-700 text-zinc-100"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+              }`}
+            >
+              Feature
+            </button>
+            <button
+              type="button"
+              onClick={() => setSpecType("ui-refactor")}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                specType === "ui-refactor"
+                  ? "bg-purple-700 text-purple-100"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+              }`}
+            >
+              UI Refactor
+            </button>
+          </div>
           {specReady && (
             <button
               type="button"
@@ -99,7 +128,9 @@ export default function NewSpecificationPage() {
         >
           <AgentChat
             agentName="Specification Expert"
-            context={content}
+            context={specType === "ui-refactor"
+              ? `${content}\n\n<spec-type>ui-refactor</spec-type>\n<spec-type-instructions>This is a UI Refactor specification. The spec MUST include these additional sections:\n## Target Path\nThe file path of the component/page to redesign (e.g., \`app/dashboard/page.tsx\`)\n## Variant Count\nNumber of design variants to generate (default: 2, max: 5)\n## Variant Briefs\n- Brief description of each variant's design direction\n## Design Goals\n- What the redesign should achieve</spec-type-instructions>`
+              : content}
             onApplySpec={handleApplySpec}
             initialMessage={initialMessage}
             className="flex-1"

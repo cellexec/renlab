@@ -4,9 +4,22 @@ import { useState, useEffect, useCallback } from "react";
 import { getSupabase } from "../lib/supabase";
 import type { Model } from "../components/ModelSelect";
 
+export interface AskQuestionOption {
+  label: string;
+  description: string;
+}
+
+export interface AskQuestion {
+  question: string;
+  header: string;
+  options: AskQuestionOption[];
+  multiSelect: boolean;
+}
+
 export type ContentBlock =
   | { type: "text"; text: string }
-  | { type: "tool_use"; name: string; detail: string };
+  | { type: "tool_use"; name: string; detail: string }
+  | { type: "ask_user_question"; questions: AskQuestion[] };
 
 export interface Message {
   id: string;
