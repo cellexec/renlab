@@ -166,37 +166,6 @@ function relativeTime(dateStr: string): string {
 }
 
 // =============================================================================
-// Animated counter hook
-// =============================================================================
-
-function useAnimatedNumber(target: number, duration = 1200) {
-  const [value, setValue] = useState(0);
-  const startTime = useRef<number | null>(null);
-  const startValue = useRef(0);
-  const rafRef = useRef<number>(0);
-
-  useEffect(() => {
-    startValue.current = value;
-    startTime.current = null;
-
-    const animate = (timestamp: number) => {
-      if (!startTime.current) startTime.current = timestamp;
-      const elapsed = timestamp - startTime.current;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(Math.round(startValue.current + (target - startValue.current) * eased));
-      if (progress < 1) rafRef.current = requestAnimationFrame(animate);
-    };
-
-    rafRef.current = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(rafRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, duration]);
-
-  return value;
-}
-
-// =============================================================================
 // Icons
 // =============================================================================
 
@@ -241,78 +210,6 @@ function IconX({ className = "w-3.5 h-3.5" }: { className?: string }) {
   );
 }
 
-function IconActivity({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-    </svg>
-  );
-}
-
-function IconClock({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  );
-}
-
-function IconCheck({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  );
-}
-
-function IconPulse({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h3l3-9 4 18 3-9h5" />
-    </svg>
-  );
-}
-
-// =============================================================================
-// Stat card
-// =============================================================================
-
-function StatCard({
-  label,
-  value,
-  suffix,
-  icon,
-  accentColor,
-  delay,
-}: {
-  label: string;
-  value: number;
-  suffix?: string;
-  icon: React.ReactNode;
-  accentColor: string;
-  delay: number;
-}) {
-  const animatedValue = useAnimatedNumber(value, 1400);
-
-  return (
-    <div
-      className="group relative backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 overflow-hidden transition-all duration-300 hover:bg-white/[0.05] animate-fade-in-up"
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div className={`p-2 rounded-lg bg-white/[0.04] ${accentColor}`}>
-          {icon}
-        </div>
-      </div>
-
-      <div className="text-2xl font-bold text-zinc-100 tabular-nums tracking-tight">
-        {animatedValue}
-        {suffix && <span className="text-lg text-zinc-400 ml-0.5">{suffix}</span>}
-      </div>
-      <div className="text-[12px] text-zinc-500 mt-0.5">{label}</div>
-    </div>
-  );
-}
 
 // =============================================================================
 // Pipeline row
@@ -459,131 +356,6 @@ const TYPE_FILTER_OPTIONS: { key: PipelineTypeFilter; label: string; color: stri
   { key: "design",  label: "Design",  color: "bg-purple-500", bg: "bg-purple-500/10", text: "text-purple-300" },
 ];
 
-function TocSidebar({
-  groups,
-  activeGroup,
-  onNavigate,
-  scoreFilter,
-  onScoreFilter,
-  typeFilter,
-  onTypeFilter,
-}: {
-  groups: { group: DisplayGroup; count: number }[];
-  activeGroup: DisplayGroup | null;
-  onNavigate: (group: DisplayGroup) => void;
-  scoreFilter: ScoreRange;
-  onScoreFilter: (range: ScoreRange) => void;
-  typeFilter: PipelineTypeFilter;
-  onTypeFilter: (type: PipelineTypeFilter) => void;
-}) {
-  return (
-    <div className="w-[200px] shrink-0">
-      <div className="sticky top-6">
-        <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
-          <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-            Status Groups
-          </h3>
-          <div className="flex flex-col gap-1">
-            {groups.map(({ group, count }) => {
-              const cfg = GROUP_CONFIG[group];
-              const isActive = activeGroup === group;
-              return (
-                <button
-                  key={group}
-                  onClick={() => onNavigate(group)}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all duration-200 ${
-                    isActive
-                      ? "bg-white/[0.06] border border-white/[0.08]"
-                      : "hover:bg-white/[0.03] border border-transparent"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${cfg.dot} ${group === "active" && isActive ? "animate-pulse" : ""}`} />
-                    <span className={`text-[13px] ${isActive ? "text-zinc-100 font-medium" : "text-zinc-400"}`}>
-                      {cfg.label}
-                    </span>
-                  </div>
-                  <span
-                    className={`text-[11px] font-mono tabular-nums px-1.5 py-0.5 rounded-md ${
-                      isActive
-                        ? `${cfg.bg} ${cfg.text}`
-                        : "text-zinc-500 bg-white/[0.03]"
-                    }`}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="border-t border-white/[0.06] my-4" />
-
-          {/* Pipeline type filter */}
-          <div className="space-y-1 mb-4">
-            <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-              Pipeline Type
-            </h3>
-            {TYPE_FILTER_OPTIONS.map(({ key, label, color, bg, text }) => {
-              const isSelected = typeFilter === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => onTypeFilter(key)}
-                  className={`flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg transition-all duration-200 ${
-                    isSelected
-                      ? `${bg} border border-white/[0.08]`
-                      : "hover:bg-white/[0.03] border border-transparent"
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${color}`} />
-                  <span className={`text-[11px] ${isSelected ? text + " font-medium" : "text-zinc-500"}`}>
-                    {label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="border-t border-white/[0.06] my-4" />
-
-          <div className="space-y-1">
-            <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-              Review Score
-            </h3>
-            {SCORE_RANGES.map(({ key, label, color, bg, text }) => {
-              const isSelected = scoreFilter === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => onScoreFilter(isSelected ? null : key)}
-                  className={`flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg transition-all duration-200 ${
-                    isSelected
-                      ? `${bg} border border-white/[0.08]`
-                      : "hover:bg-white/[0.03] border border-transparent"
-                  }`}
-                >
-                  <div className={`w-4 h-1.5 rounded-full ${color}`} />
-                  <span className={`text-[11px] ${isSelected ? text + " font-medium" : "text-zinc-500"}`}>
-                    {label}
-                  </span>
-                </button>
-              );
-            })}
-            {scoreFilter && (
-              <button
-                onClick={() => onScoreFilter(null)}
-                className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors mt-1 px-2.5"
-              >
-                Clear filter
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // =============================================================================
 // Main page
@@ -598,13 +370,10 @@ export default function PipelinesPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<DisplayGroup>>(new Set());
-  const [activeGroup, setActiveGroup] = useState<DisplayGroup | null>("active");
   const [scoreFilter, setScoreFilter] = useState<ScoreRange>(null);
   const [typeFilter, setTypeFilter] = useState<PipelineTypeFilter>("all");
   const [mounted, setMounted] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Spec title lookup
   const specTitleMap = useMemo(() => {
@@ -632,28 +401,6 @@ export default function PipelinesPage() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
-
-  // IntersectionObserver for active TOC group
-  useEffect(() => {
-    const root = scrollRef.current;
-    if (!root) return;
-    const observers: IntersectionObserver[] = [];
-    GROUP_ORDER.forEach((group) => {
-      const el = groupRefs.current[group];
-      if (!el) return;
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          if (entry.isIntersecting) {
-            setActiveGroup(group);
-          }
-        },
-        { root, threshold: 0.1, rootMargin: "-80px 0px -60% 0px" }
-      );
-      observer.observe(el);
-      observers.push(observer);
-    });
-    return () => observers.forEach((o) => o.disconnect());
-  }, [mounted, loaded]);
 
   // Merge feature + design runs into unified list, sorted by createdAt desc
   const allUnifiedRuns = useMemo(() => {
@@ -700,24 +447,6 @@ export default function PipelinesPage() {
     return map;
   }, [filteredRuns]);
 
-  // Stats (across all unified runs)
-  const stats = useMemo(() => {
-    const total = allUnifiedRuns.length;
-    const successCount = allUnifiedRuns.filter((r) => r.status === "success").length;
-    const failedCount = allUnifiedRuns.filter((r) => r.status === "failed" || r.status === "rejected").length;
-    const successRate = successCount + failedCount > 0
-      ? Math.round((successCount / (successCount + failedCount)) * 100)
-      : 0;
-    const withDuration = allUnifiedRuns.filter((r) => r.finishedAt);
-    const avgDurationMs =
-      withDuration.length > 0
-        ? withDuration.reduce((s, r) => s + (new Date(r.finishedAt!).getTime() - new Date(r.createdAt).getTime()), 0) / withDuration.length
-        : 0;
-    const avgDurationMin = Math.round(avgDurationMs / 60000);
-    const activeNow = allUnifiedRuns.filter((r) => r.isActive).length;
-    return { total, successRate, avgDurationMin, activeNow };
-  }, [allUnifiedRuns]);
-
   const toggleGroup = useCallback((group: DisplayGroup) => {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
@@ -727,230 +456,193 @@ export default function PipelinesPage() {
     });
   }, []);
 
-  const navigateToGroup = useCallback((group: DisplayGroup) => {
-    const el = groupRefs.current[group];
-    if (el) {
-      setActiveGroup(group);
-      setCollapsedGroups((prev) => {
-        const next = new Set(prev);
-        next.delete(group);
-        return next;
-      });
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, []);
-
-  const tocGroups = GROUP_ORDER.map((group) => ({
-    group,
-    count: groupedRuns[group].length,
-  }));
+  const hasActiveFilters = scoreFilter !== null || typeFilter !== "all" || searchQuery.trim() !== "";
 
   return (
-    <div className={`h-full bg-zinc-950 text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
-      <div ref={scrollRef} className="h-full overflow-auto">
-        <div className="max-w-full px-6 py-6">
-          {/* Breadcrumb + header */}
-          <div className="mb-6 animate-fade-in-up stagger-1">
-            <div className="flex items-center gap-1.5 text-[12px] text-zinc-500 mb-2">
-              <span className="hover:text-zinc-300 cursor-pointer transition-colors">Home</span>
-              <span>/</span>
-              <span className="text-zinc-300">Pipelines</span>
-            </div>
-            <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">Pipeline Runs</h1>
-            <p className="mt-1 text-[13px] text-zinc-500">
-              {activeProject ? activeProject.title : "No project selected"}
+    <div className={`h-full flex flex-col bg-zinc-950 text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
+      {/* Sticky top: header + filters + search */}
+      <div className="shrink-0 bg-zinc-950 border-b border-white/[0.06] px-6 pt-5 pb-4 z-10">
+        {/* Breadcrumb + header */}
+        <div className="mb-4 animate-fade-in-up stagger-1">
+          <div className="flex items-center gap-1.5 text-[12px] text-zinc-500 mb-1">
+            <span className="hover:text-zinc-300 cursor-pointer transition-colors">Home</span>
+            <span>/</span>
+            <span className="text-zinc-300">Pipelines</span>
+          </div>
+          <h1 className="text-xl font-bold text-zinc-100 tracking-tight">Pipeline Runs</h1>
+        </div>
+
+        {!activeProject && (
+          <div className="flex items-center gap-2 backdrop-blur-xl bg-amber-500/[0.04] border border-amber-500/[0.1] rounded-xl px-4 py-3 mb-4 animate-fade-in-up stagger-2">
+            <svg className="h-4 w-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            <p className="text-[12px] text-amber-400">
+              Select a project from the sidebar to view pipeline runs.
             </p>
           </div>
+        )}
 
-          {!activeProject && (
-            <div className="flex items-center gap-2 backdrop-blur-xl bg-amber-500/[0.04] border border-amber-500/[0.1] rounded-xl px-4 py-3 mb-5 animate-fade-in-up stagger-2">
-              <svg className="h-4 w-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-              </svg>
-              <p className="text-[12px] text-amber-400">
-                Select a project from the sidebar to view pipeline runs.
-              </p>
-            </div>
-          )}
-
-          {!loaded || !designLoaded ? (
-            <div className="flex h-64 items-center justify-center text-zinc-500">Loading...</div>
-          ) : allUnifiedRuns.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
-              <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-2xl p-12 text-center">
-                <svg className="h-12 w-12 text-zinc-600 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                <p className="text-sm text-zinc-400 mt-4">No pipeline runs yet</p>
-                <p className="text-[12px] text-zinc-600 mt-1">Open a specification and click &ldquo;Send to Pipeline&rdquo; to start</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Stat cards */}
-              <div className="grid grid-cols-4 gap-3 mb-6">
-                <StatCard
-                  label="Total Runs"
-                  value={stats.total}
-                  icon={<IconActivity />}
-                  accentColor="text-indigo-400"
-                  delay={100}
-                />
-                <StatCard
-                  label="Success Rate"
-                  value={stats.successRate}
-                  suffix="%"
-                  icon={<IconCheck />}
-                  accentColor="text-emerald-400"
-                  delay={180}
-                />
-                <StatCard
-                  label="Avg Duration"
-                  value={stats.avgDurationMin}
-                  suffix="m"
-                  icon={<IconClock />}
-                  accentColor="text-amber-400"
-                  delay={260}
-                />
-                <StatCard
-                  label="Active Now"
-                  value={stats.activeNow}
-                  icon={<IconPulse />}
-                  accentColor="text-violet-400"
-                  delay={340}
-                />
-              </div>
-
-              {/* Search bar */}
-              <div className="mb-5 animate-fade-in-up" style={{ animationDelay: "200ms" }}>
-                <div className="search-glow relative flex items-center backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl transition-all duration-300">
-                  <IconSearch className="w-4 h-4 text-zinc-500 ml-4 shrink-0" />
-                  <input
-                    ref={searchRef}
-                    type="text"
-                    placeholder="Search by run ID, spec title, or branch..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent text-[13px] text-zinc-200 placeholder:text-zinc-600 py-3 px-3 outline-none"
-                  />
-                  <kbd className="hidden sm:inline-flex items-center gap-0.5 text-[10px] text-zinc-500 bg-white/[0.05] border border-white/[0.08] px-1.5 py-0.5 rounded-md mr-3 font-mono">
-                    <span className="text-[11px]">&#8984;</span>K
-                  </kbd>
-                </div>
-              </div>
-
-              {/* Active score filter chip */}
-              {scoreFilter && (
-                <div className="mb-4 flex items-center gap-2 animate-fade-in-up">
-                  <span className="text-[11px] text-zinc-500">Filtering by score:</span>
+        {/* Filter bar + search */}
+        {loaded && designLoaded && allUnifiedRuns.length > 0 && (
+          <div className="flex items-center gap-3 animate-fade-in-up" style={{ animationDelay: "100ms" }}>
+            {/* Status group pills */}
+            <div className="flex items-center gap-1">
+              {GROUP_ORDER.map((group) => {
+                const cfg = GROUP_CONFIG[group];
+                const count = groupedRuns[group].length;
+                return (
                   <button
-                    onClick={() => setScoreFilter(null)}
-                    className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors ${
-                      SCORE_RANGES.find((s) => s.key === scoreFilter)!.bg
-                    } ${SCORE_RANGES.find((s) => s.key === scoreFilter)!.text}`}
-                  >
-                    {SCORE_RANGES.find((s) => s.key === scoreFilter)!.label}
-                    <IconX className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-
-              {/* Active type filter chip */}
-              {typeFilter !== "all" && (
-                <div className="mb-4 flex items-center gap-2 animate-fade-in-up">
-                  <span className="text-[11px] text-zinc-500">Filtering by type:</span>
-                  <button
-                    onClick={() => setTypeFilter("all")}
-                    className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors ${
-                      typeFilter === "feature" ? "bg-blue-500/10 text-blue-300" : "bg-purple-500/10 text-purple-300"
+                    key={group}
+                    onClick={() => toggleGroup(group)}
+                    className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-lg transition-all duration-200 ${
+                      !collapsedGroups.has(group)
+                        ? `${cfg.bg} ${cfg.text} border border-white/[0.08]`
+                        : "text-zinc-500 hover:text-zinc-400 hover:bg-white/[0.03] border border-transparent"
                     }`}
                   >
-                    {typeFilter}
-                    <IconX className="w-3 h-3" />
+                    <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} ${group === "active" && !collapsedGroups.has(group) ? "animate-pulse" : ""}`} />
+                    {cfg.label}
+                    <span className="font-mono tabular-nums opacity-60">{count}</span>
                   </button>
-                </div>
-              )}
+                );
+              })}
+            </div>
 
-              {/* Content area: list + TOC sidebar */}
-              <div className="flex gap-6">
-                {/* Main pipeline list */}
-                <div className="flex-1 min-w-0">
-                  {GROUP_ORDER.map((group) => {
-                    const groupRuns = groupedRuns[group];
-                    if (groupRuns.length === 0) return null;
-                    const cfg = GROUP_CONFIG[group];
-                    const isCollapsed = collapsedGroups.has(group);
+            {/* Separator */}
+            <div className="w-px h-5 bg-white/[0.08]" />
 
-                    return (
-                      <div
-                        key={group}
-                        ref={(el) => { groupRefs.current[group] = el; }}
-                        className="mb-4"
-                      >
-                        {/* Group header */}
-                        <button
-                          onClick={() => toggleGroup(group)}
-                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/[0.03] transition-colors duration-200 mb-1 group"
-                        >
-                          <IconChevron open={!isCollapsed} className="w-3.5 h-3.5 text-zinc-500" />
-                          <span className={`w-2 h-2 rounded-full ${cfg.dot} ${group === "active" ? "animate-pulse" : ""}`} />
-                          <span className={`text-[13px] font-semibold ${cfg.color}`}>
-                            {cfg.label}
-                          </span>
-                          <span className="text-[11px] text-zinc-500 font-mono">
-                            ({groupRuns.length})
-                          </span>
-                        </button>
+            {/* Type filter pills */}
+            <div className="flex items-center gap-1">
+              {TYPE_FILTER_OPTIONS.map(({ key, label, color, bg, text }) => (
+                <button
+                  key={key}
+                  onClick={() => setTypeFilter(key)}
+                  className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-1.5 rounded-lg transition-all duration-200 ${
+                    typeFilter === key
+                      ? `${bg} ${text} border border-white/[0.08]`
+                      : "text-zinc-500 hover:text-zinc-400 hover:bg-white/[0.03] border border-transparent"
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${color}`} />
+                  {label}
+                </button>
+              ))}
+            </div>
 
-                        {/* Collapsible run list */}
-                        <div
-                          className="overflow-hidden transition-all duration-300 ease-in-out"
-                          style={{
-                            maxHeight: isCollapsed ? 0 : groupRuns.length * 200,
-                            opacity: isCollapsed ? 0 : 1,
-                          }}
-                        >
-                          <div className="backdrop-blur-xl bg-white/[0.01] border border-white/[0.06] rounded-xl overflow-hidden">
-                            {groupRuns.map((run, idx) => (
-                              <PipelineRow
-                                key={run.id}
-                                run={run}
-                                specTitle={specTitleMap.get(run.specificationId) ?? "Untitled Spec"}
-                                onClick={() => router.push(run.type === "design" ? `/design-pipelines/${run.id}` : `/pipelines/${run.id}`)}
-                                onCancel={() => run.type === "design" ? cancelDesignRun(run.id) : cancelRun(run.id)}
-                                style={{ animationDelay: `${300 + idx * 60}ms` }}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+            {/* Separator */}
+            <div className="w-px h-5 bg-white/[0.08]" />
 
-                  {/* Empty search state */}
-                  {filteredRuns.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-20 text-center">
-                      <IconSearch className="w-8 h-8 text-zinc-600 mb-3" />
-                      <p className="text-zinc-400 text-[14px]">No pipeline runs found</p>
-                      <p className="text-zinc-600 text-[12px] mt-1">Try adjusting your search or filters</p>
-                    </div>
-                  )}
-                </div>
+            {/* Score filter pills */}
+            <div className="flex items-center gap-1">
+              {SCORE_RANGES.map(({ key, label, color, bg, text }) => (
+                <button
+                  key={key}
+                  onClick={() => setScoreFilter(scoreFilter === key ? null : key)}
+                  className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-1.5 rounded-lg transition-all duration-200 ${
+                    scoreFilter === key
+                      ? `${bg} ${text} border border-white/[0.08]`
+                      : "text-zinc-500 hover:text-zinc-400 hover:bg-white/[0.03] border border-transparent"
+                  }`}
+                >
+                  <div className={`w-3 h-1.5 rounded-full ${color}`} />
+                  {label}
+                </button>
+              ))}
+            </div>
 
-                {/* Right TOC sidebar */}
-                <TocSidebar
-                  groups={tocGroups}
-                  activeGroup={activeGroup}
-                  onNavigate={navigateToGroup}
-                  scoreFilter={scoreFilter}
-                  onScoreFilter={setScoreFilter}
-                  typeFilter={typeFilter}
-                  onTypeFilter={setTypeFilter}
+            {/* Search — pushed to the right */}
+            <div className="ml-auto flex-shrink-0 w-[260px]">
+              <div className="search-glow relative flex items-center bg-white/[0.03] border border-white/[0.06] rounded-lg transition-all duration-300">
+                <IconSearch className="w-3.5 h-3.5 text-zinc-500 ml-3 shrink-0" />
+                <input
+                  ref={searchRef}
+                  type="text"
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 bg-transparent text-[12px] text-zinc-200 placeholder:text-zinc-600 py-2 px-2 outline-none"
                 />
+                <kbd className="hidden sm:inline-flex items-center gap-0.5 text-[10px] text-zinc-500 bg-white/[0.05] border border-white/[0.08] px-1.5 py-0.5 rounded mr-2 font-mono">
+                  <span className="text-[11px]">&#8984;</span>K
+                </kbd>
               </div>
-            </>
-          )}
-        </div>
+            </div>
+
+            {/* Clear all filters */}
+            {hasActiveFilters && (
+              <button
+                onClick={() => { setSearchQuery(""); setScoreFilter(null); setTypeFilter("all"); }}
+                className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Scrollable pipeline list */}
+      <div className="flex-1 overflow-auto px-6 py-4">
+        {!loaded || !designLoaded ? (
+          <div className="flex h-64 items-center justify-center text-zinc-500">Loading...</div>
+        ) : allUnifiedRuns.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
+            <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-2xl p-12 text-center">
+              <svg className="h-12 w-12 text-zinc-600 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <p className="text-sm text-zinc-400 mt-4">No pipeline runs yet</p>
+              <p className="text-[12px] text-zinc-600 mt-1">Open a specification and click &ldquo;Send to Pipeline&rdquo; to start</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {GROUP_ORDER.map((group) => {
+              const groupRuns = groupedRuns[group];
+              if (groupRuns.length === 0 || collapsedGroups.has(group)) return null;
+              const cfg = GROUP_CONFIG[group];
+
+              return (
+                <div key={group} className="mb-4">
+                  {/* Group header */}
+                  <div className="flex items-center gap-2 px-3 py-2 mb-1">
+                    <span className={`w-2 h-2 rounded-full ${cfg.dot} ${group === "active" ? "animate-pulse" : ""}`} />
+                    <span className={`text-[13px] font-semibold ${cfg.color}`}>
+                      {cfg.label}
+                    </span>
+                    <span className="text-[11px] text-zinc-500 font-mono">
+                      ({groupRuns.length})
+                    </span>
+                  </div>
+
+                  {/* Run list */}
+                  <div className="backdrop-blur-xl bg-white/[0.01] border border-white/[0.06] rounded-xl overflow-hidden">
+                    {groupRuns.map((run, idx) => (
+                      <PipelineRow
+                        key={run.id}
+                        run={run}
+                        specTitle={specTitleMap.get(run.specificationId) ?? "Untitled Spec"}
+                        onClick={() => router.push(run.type === "design" ? `/design-pipelines/${run.id}` : `/pipelines/${run.id}`)}
+                        onCancel={() => run.type === "design" ? cancelDesignRun(run.id) : cancelRun(run.id)}
+                        style={{ animationDelay: `${300 + idx * 60}ms` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Empty search state */}
+            {filteredRuns.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <IconSearch className="w-8 h-8 text-zinc-600 mb-3" />
+                <p className="text-zinc-400 text-[14px]">No pipeline runs found</p>
+                <p className="text-zinc-600 text-[12px] mt-1">Try adjusting your search or filters</p>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
