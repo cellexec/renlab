@@ -127,10 +127,8 @@ export default function NewSpecificationPage() {
           }`}
         >
           <AgentChat
-            agentName="Specification Expert"
-            context={specType === "ui-refactor"
-              ? `${content}\n\n<spec-type>ui-refactor</spec-type>\n<spec-type-instructions>This is a UI Refactor specification. The spec MUST include these additional sections:\n## Target Path\nThe file path of the component/page to redesign (e.g., \`app/dashboard/page.tsx\`)\n## Variant Count\nNumber of design variants to generate (default: 2, max: 5)\n## Variant Briefs\n- Brief description of each variant's design direction\n## Design Goals\n- What the redesign should achieve</spec-type-instructions>`
-              : content}
+            agentName={specType === "ui-refactor" ? "Design Spec Expert" : "Feature Spec Expert"}
+            context={content}
             onApplySpec={handleApplySpec}
             initialMessage={initialMessage}
             className="flex-1"

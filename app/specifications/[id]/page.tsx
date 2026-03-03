@@ -642,7 +642,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
               </button>
             </div>
             <AgentChat
-              agentName="Specification Expert"
+              agentName={spec.type === "ui-refactor" ? "Design Spec Expert" : "Feature Spec Expert"}
               context={content}
               onApplySpec={(specContent) => {
                 handleApplySpec(specContent);
