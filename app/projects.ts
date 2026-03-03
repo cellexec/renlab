@@ -10,7 +10,9 @@ export interface Project {
   pipelineThreshold: number;
   /** Number of times the coder agent can retry after a review rejection (default: 2) */
   maxRetries: number;
+  /** Git root path for monorepo apps (null for single-repo projects) */
+  repoPath: string | null;
 }
 
 /** Fields required when creating a new project (pipelineThreshold and maxRetries have DB defaults) */
-export type NewProject = Omit<Project, "id" | "pipelineThreshold" | "maxRetries"> & { pipelineThreshold?: number; maxRetries?: number };
+export type NewProject = Omit<Project, "id" | "pipelineThreshold" | "maxRetries" | "repoPath"> & { pipelineThreshold?: number; maxRetries?: number; repoPath?: string | null };

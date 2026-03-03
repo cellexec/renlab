@@ -19,6 +19,7 @@ export default function DevServerPage() {
     useDevServer({
       projectId: activeProject?.id ?? null,
       projectPath: activeProject?.path,
+      repoPath: activeProject?.repoPath,
     });
   const [mounted, setMounted] = useState(false);
 

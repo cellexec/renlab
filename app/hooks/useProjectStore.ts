@@ -15,6 +15,7 @@ function toProject(row: Record<string, unknown>): Project {
     stack: (row.stack as Stack) ?? "nextjs",
     pipelineThreshold: (row.pipeline_threshold as number) ?? 80,
     maxRetries: (row.max_retries as number) ?? 2,
+    repoPath: (row.repo_path as string) ?? null,
   };
 }
 
@@ -26,6 +27,7 @@ function toRow(project: Partial<Omit<Project, "id">>) {
   if (project.stack !== undefined) row.stack = project.stack;
   if (project.pipelineThreshold !== undefined) row.pipeline_threshold = project.pipelineThreshold;
   if (project.maxRetries !== undefined) row.max_retries = project.maxRetries;
+  if (project.repoPath !== undefined) row.repo_path = project.repoPath;
   return row;
 }
 
@@ -105,6 +107,21 @@ export function useProjectStore() {
     []
   );
 
+  const addProjects = useCallback(
+    async (newProjects: NewProject[]): Promise<string[]> => {
+      if (newProjects.length === 0) return [];
+      const { data, error } = await getSupabase()
+        .from("projects")
+        .insert(newProjects.map(toRow))
+        .select("id");
+      if (error) throw new Error(error.message);
+      const ids = (data ?? []).map((r: { id: string }) => r.id);
+      if (ids.length > 0) setActiveProjectId(ids[0]);
+      return ids;
+    },
+    []
+  );
+
   const updateProject = useCallback(
     async (id: string, partial: Partial<Omit<Project, "id">>) => {
       await getSupabase().from("projects").update(toRow(partial)).eq("id", id);
@@ -123,6 +140,7 @@ export function useProjectStore() {
     activeProject,
     setActiveProjectId,
     addProject,
+    addProjects,
     updateProject,
     deleteProject,
   };

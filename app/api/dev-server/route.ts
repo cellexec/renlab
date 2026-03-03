@@ -1,7 +1,7 @@
 import { startServer, stopServer, restartServer, clearNextCache } from "../../lib/devServerManager";
 
 export async function POST(req: Request) {
-  const { action, projectId, projectPath } = await req.json();
+  const { action, projectId, projectPath, repoPath } = await req.json();
 
   if (!projectId) {
     return Response.json({ error: "projectId is required" }, { status: 400 });
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
       if (!projectPath) {
         return Response.json({ error: "projectPath is required for start" }, { status: 400 });
       }
-      const result = await startServer(projectId, projectPath);
+      const result = await startServer(projectId, projectPath, repoPath);
       return Response.json(result);
     }
     case "stop": {
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       if (!projectPath) {
         return Response.json({ error: "projectPath is required for restart" }, { status: 400 });
       }
-      const result = await restartServer(projectId, projectPath);
+      const result = await restartServer(projectId, projectPath, repoPath);
       return Response.json(result);
     }
     case "clear-cache": {

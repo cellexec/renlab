@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import type { Project } from "../projects";
+import { groupProjects } from "../lib/groupProjects";
 
 interface ProjectDropdownProps {
   projects: Project[];
@@ -74,55 +75,66 @@ export function ProjectDropdown({ projects, activeProject, onSelect, onDelete, c
         <div className="absolute left-3 right-3 top-full z-50 mt-1 rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-xl">
           {projects.length === 0 ? (
             <div className="px-3 py-2 text-xs text-zinc-500">No projects yet</div>
-          ) : (
-            projects.map((p) => (
-              <div
-                key={p.id}
-                className={`group flex items-center gap-1 px-3 py-2 transition-colors hover:bg-zinc-800 ${
-                  p.id === activeProject?.id ? "bg-zinc-800/60" : ""
-                }`}
-              >
-                {confirmDeleteId === p.id ? (
-                  <div className="flex flex-1 items-center justify-between gap-2">
-                    <span className="text-xs text-zinc-400 truncate">Remove &ldquo;{p.title}&rdquo;?</span>
-                    <div className="flex gap-1 shrink-0">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onDelete(p.id); setConfirmDeleteId(null); }}
-                        className="rounded px-2 py-0.5 text-xs font-medium bg-red-600 text-white hover:bg-red-500"
-                      >
-                        Remove
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
-                        className="rounded px-2 py-0.5 text-xs text-zinc-400 hover:text-zinc-200"
-                      >
-                        Cancel
-                      </button>
-                    </div>
+          ) : (() => {
+            const groups = groupProjects(projects);
+            const showHeaders = groups.length > 1;
+            return groups.map((group) => (
+              <div key={group.repoPath ?? "__standalone"}>
+                {showHeaders && (
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-zinc-600">
+                    {group.label}
                   </div>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => { onSelect(p.id); setOpen(false); }}
-                      className="flex flex-1 flex-col text-left min-w-0"
-                    >
-                      <span className="text-sm text-zinc-200 truncate">{p.title}</span>
-                      <span className="text-[11px] text-zinc-500 truncate font-mono">{p.path}</span>
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(p.id); }}
-                      className="shrink-0 rounded p-1 text-zinc-600 opacity-0 group-hover:opacity-100 hover:bg-zinc-700 hover:text-red-400 transition-all"
-                      title="Remove project"
-                    >
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </>
                 )}
+                {group.projects.map((p) => (
+                  <div
+                    key={p.id}
+                    className={`group flex items-center gap-1 px-3 py-2 transition-colors hover:bg-zinc-800 ${
+                      p.id === activeProject?.id ? "bg-zinc-800/60" : ""
+                    }`}
+                  >
+                    {confirmDeleteId === p.id ? (
+                      <div className="flex flex-1 items-center justify-between gap-2">
+                        <span className="text-xs text-zinc-400 truncate">Remove &ldquo;{p.title}&rdquo;?</span>
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onDelete(p.id); setConfirmDeleteId(null); }}
+                            className="rounded px-2 py-0.5 text-xs font-medium bg-red-600 text-white hover:bg-red-500"
+                          >
+                            Remove
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
+                            className="rounded px-2 py-0.5 text-xs text-zinc-400 hover:text-zinc-200"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => { onSelect(p.id); setOpen(false); }}
+                          className="flex flex-1 flex-col text-left min-w-0"
+                        >
+                          <span className="text-sm text-zinc-200 truncate">{p.title}</span>
+                          <span className="text-[11px] text-zinc-500 truncate font-mono">{p.path}</span>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(p.id); }}
+                          className="shrink-0 rounded p-1 text-zinc-600 opacity-0 group-hover:opacity-100 hover:bg-zinc-700 hover:text-red-400 transition-all"
+                          title="Remove project"
+                        >
+                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))
-          )}
+            ));
+          })()}
         </div>
       )}
     </div>

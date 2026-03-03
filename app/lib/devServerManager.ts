@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "child_process";
 import { createServer } from "net";
 import { rm } from "fs/promises";
+import { cleanEnv } from "./env";
 
 export type ServerStatus = "idle" | "starting" | "running" | "stopping" | "error";
 
@@ -91,7 +92,14 @@ function findFreePort(start = 3100): Promise<number> {
   });
 }
 
-export async function startServer(projectId: string, projectPath: string): Promise<{ status: ServerStatus; port: number | null }> {
+/** Compute relative app path from repoPath to projectPath */
+function getRelativeAppPath(projectPath: string, repoPath: string): string {
+  return projectPath.startsWith(repoPath)
+    ? projectPath.slice(repoPath.length).replace(/^\//, "")
+    : projectPath;
+}
+
+export async function startServer(projectId: string, projectPath: string, repoPath?: string | null): Promise<{ status: ServerStatus; port: number | null }> {
   const existing = servers.get(projectId);
   if (existing && (existing.status === "running" || existing.status === "starting")) {
     return { status: existing.status, port: existing.port };
@@ -102,15 +110,27 @@ export async function startServer(projectId: string, projectPath: string): Promi
     servers.delete(projectId);
   }
 
-  // Find a free port so we don't collide with the renlab app or other projects
-  const assignedPort = await findFreePort();
+  let proc: ChildProcess;
 
-  const proc = spawn("npm", ["run", "dev"], {
-    cwd: projectPath,
-    shell: true,
-    stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, FORCE_COLOR: "0", PORT: String(assignedPort) },
-  });
+  if (repoPath) {
+    // Monorepo mode: use bun, apps define their own port via --port
+    const appCwd = getRelativeAppPath(projectPath, repoPath);
+    proc = spawn("bun", ["run", "--cwd", appCwd, "dev"], {
+      cwd: repoPath,
+      shell: true,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: cleanEnv({ FORCE_COLOR: "0" }),
+    });
+  } else {
+    // Standalone mode: use npm with assigned port
+    const assignedPort = await findFreePort();
+    proc = spawn("npm", ["run", "dev"], {
+      cwd: projectPath,
+      shell: true,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, FORCE_COLOR: "0", PORT: String(assignedPort) },
+    });
+  }
 
   const state: ServerState = {
     process: proc,
@@ -197,7 +217,7 @@ export function stopServer(projectId: string): { status: ServerStatus; port: num
   return { status: "stopping", port: state.port };
 }
 
-export async function restartServer(projectId: string, projectPath: string): Promise<{ status: ServerStatus; port: number | null }> {
+export async function restartServer(projectId: string, projectPath: string, repoPath?: string | null): Promise<{ status: ServerStatus; port: number | null }> {
   const state = servers.get(projectId);
   if (state && (state.status === "running" || state.status === "starting")) {
     // Stop first, then start on close
@@ -219,13 +239,13 @@ export async function restartServer(projectId: string, projectPath: string): Pro
 
     proc.on("close", () => {
       clearTimeout(killTimer);
-      startServer(projectId, projectPath);
+      startServer(projectId, projectPath, repoPath);
     });
 
     return { status: "stopping", port: null };
   }
 
-  return startServer(projectId, projectPath);
+  return startServer(projectId, projectPath, repoPath);
 }
 
 export function getStatus(projectId: string): { status: ServerStatus; port: number | null; exitCode: number | null } {
