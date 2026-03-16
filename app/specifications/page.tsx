@@ -1,19 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import Link from "next/link";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { KbdButton } from "../components/ui";
 import { useSpecificationStore } from "../hooks/useSpecificationStore";
 import { useProjectContext } from "../components/ProjectContext";
 import type { Specification, SpecificationStatus } from "../specifications";
 
-// =============================================================================
-// Display group types + config
-// =============================================================================
+// ── Status grouping ─────────────────────────────────────────────────────────
 
 type DisplayGroup = "pipeline" | "draft" | "done" | "failed";
-
 const STATUS_ORDER: DisplayGroup[] = ["pipeline", "draft", "done", "failed"];
 
 function toDisplayGroup(status: SpecificationStatus): DisplayGroup {
@@ -23,55 +19,22 @@ function toDisplayGroup(status: SpecificationStatus): DisplayGroup {
   return "failed"; // failed + cancelled
 }
 
-const GROUP_CONFIG: Record<
-  DisplayGroup,
-  { label: string; color: string; border: string; bg: string; dot: string; text: string }
-> = {
-  pipeline: {
-    label: "In Pipeline",
-    color: "text-indigo-400",
-    border: "border-l-indigo-500",
-    bg: "bg-indigo-500/10",
-    dot: "bg-indigo-500",
-    text: "text-indigo-300",
-  },
-  draft: {
-    label: "Draft",
-    color: "text-zinc-400",
-    border: "border-l-zinc-500",
-    bg: "bg-zinc-500/10",
-    dot: "bg-zinc-500",
-    text: "text-zinc-400",
-  },
-  done: {
-    label: "Done",
-    color: "text-emerald-400",
-    border: "border-l-emerald-500",
-    bg: "bg-emerald-500/10",
-    dot: "bg-emerald-500",
-    text: "text-emerald-300",
-  },
-  failed: {
-    label: "Failed",
-    color: "text-red-400",
-    border: "border-l-red-500",
-    bg: "bg-red-500/10",
-    dot: "bg-red-500",
-    text: "text-red-300",
-  },
+const GROUP_CONFIG: Record<DisplayGroup, { label: string; dot: string }> = {
+  pipeline: { label: "In Pipeline", dot: "bg-indigo-500" },
+  draft: { label: "Draft", dot: "bg-zinc-500" },
+  done: { label: "Done", dot: "bg-emerald-500" },
+  failed: { label: "Failed", dot: "bg-red-500" },
 };
 
 const STATUS_BADGE: Record<SpecificationStatus, { dot: string; label: string; bg: string; text: string }> = {
-  draft:     { dot: "bg-zinc-500",                  label: "Draft",     bg: "bg-zinc-500/10",    text: "text-zinc-400" },
+  draft:     { dot: "bg-zinc-500",                 label: "Draft",     bg: "bg-zinc-500/10",    text: "text-zinc-400" },
   pipeline:  { dot: "bg-indigo-500 animate-pulse",  label: "Pipeline",  bg: "bg-indigo-500/10",  text: "text-indigo-400" },
   done:      { dot: "bg-emerald-500",               label: "Done",      bg: "bg-emerald-500/10", text: "text-emerald-400" },
   failed:    { dot: "bg-red-500",                   label: "Failed",    bg: "bg-red-500/10",     text: "text-red-400" },
   cancelled: { dot: "bg-amber-500",                 label: "Cancelled", bg: "bg-amber-500/10",   text: "text-amber-400" },
 };
 
-// =============================================================================
-// Helpers
-// =============================================================================
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function relativeTime(dateStr: string): string {
   const ms = Date.now() - new Date(dateStr).getTime();
@@ -85,590 +48,444 @@ function relativeTime(dateStr: string): string {
   return `${days}d ago`;
 }
 
-// =============================================================================
-// Icons
-// =============================================================================
+// ── Fuzzy search ────────────────────────────────────────────────────────────
 
-function IconSearch({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-    </svg>
-  );
+function fuzzyMatch(text: string, query: string): boolean {
+  const lower = text.toLowerCase();
+  const q = query.toLowerCase();
+  let ti = 0;
+  for (let qi = 0; qi < q.length; qi++) {
+    const idx = lower.indexOf(q[qi], ti);
+    if (idx === -1) return false;
+    ti = idx + 1;
+  }
+  return true;
 }
 
-function IconChevron({ open, className = "w-4 h-4" }: { open: boolean; className?: string }) {
-  return (
-    <svg
-      className={`${className} transition-transform duration-300 ${open ? "rotate-90" : "rotate-0"}`}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-    </svg>
-  );
+function fuzzyIndices(text: string, query: string): Set<number> | null {
+  const lower = text.toLowerCase();
+  const q = query.toLowerCase();
+  const indices = new Set<number>();
+  let ti = 0;
+  for (let qi = 0; qi < q.length; qi++) {
+    const idx = lower.indexOf(q[qi], ti);
+    if (idx === -1) return null;
+    indices.add(idx);
+    ti = idx + 1;
+  }
+  return indices;
 }
 
-function IconEye({ className = "w-3.5 h-3.5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  );
-}
-
-function IconTrash({ className = "w-3.5 h-3.5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-    </svg>
-  );
-}
-
-function IconFilter({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
-    </svg>
-  );
-}
-
-function IconChevronDown({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-    </svg>
-  );
-}
-
-// =============================================================================
-// Spec row
-// =============================================================================
-
-function SpecRow({
-  spec,
-  version,
-  onView,
-  onDelete,
-  confirmingDelete,
-  onCancelDelete,
-  style,
-}: {
-  spec: Specification;
-  version: number | null;
-  onView: () => void;
-  onDelete: () => void;
-  confirmingDelete: boolean;
-  onCancelDelete: () => void;
-  style: React.CSSProperties;
+function FuzzyText({ text, query, className, highlightClass }: {
+  text: string; query: string; className?: string; highlightClass?: string;
 }) {
-  const group = toDisplayGroup(spec.status);
-  const groupCfg = GROUP_CONFIG[group];
-  const badge = STATUS_BADGE[spec.status];
-
+  if (!query) return <span className={className}>{text}</span>;
+  const indices = fuzzyIndices(text, query);
+  if (!indices || indices.size === 0) return <span className={className}>{text}</span>;
   return (
-    <div style={style} className="animate-fade-in-up">
-      <div
-        className={`group relative border-l-[3px] ${groupCfg.border} bg-white/[0.015] hover:bg-white/[0.04] border-b border-white/[0.04] transition-all duration-200 cursor-pointer`}
-        onClick={onView}
-      >
-        <div className="flex items-center gap-4 px-4 py-3">
-          {/* Spec title + status badge */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] font-semibold text-zinc-100 truncate">
-                {spec.title}
-              </span>
-              <span
-                className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${badge.bg} ${badge.text}`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
-                {badge.label}
-              </span>
-            </div>
-          </div>
-
-          {/* Version badge */}
-          <span className="text-[12px] text-zinc-500 font-mono tabular-nums shrink-0">
-            {version != null ? (
-              <span className="bg-white/[0.04] px-2 py-0.5 rounded">v{version}</span>
-            ) : (
-              <span className="text-zinc-600">&mdash;</span>
-            )}
-          </span>
-
-          {/* Timestamp */}
-          <span className="text-[11px] text-zinc-500 w-[60px] text-right shrink-0">
-            {relativeTime(spec.updatedAt)}
-          </span>
-
-          {/* Hover action icons */}
-          <div className="flex items-center gap-1 opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 shrink-0" onClick={(e) => e.stopPropagation()}>
-            {confirmingDelete ? (
-              <div className="flex gap-1">
-                <button
-                  onClick={onDelete}
-                  className="rounded px-2 py-1 text-[11px] font-medium text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-colors"
-                >
-                  Delete
-                </button>
-                <button
-                  onClick={onCancelDelete}
-                  className="rounded px-2 py-1 text-[11px] text-zinc-400 bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <>
-                <button
-                  onClick={onView}
-                  className="p-1.5 rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-violet-400 transition-colors"
-                  title="View"
-                >
-                  <IconEye />
-                </button>
-                <button
-                  onClick={() => onDelete()}
-                  className="p-1.5 rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-red-400 transition-colors"
-                  title="Delete"
-                >
-                  <IconTrash />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+    <span className={className}>
+      {Array.from(text).map((ch, i) =>
+        indices.has(i) ? (
+          <span key={i} className={highlightClass ?? "text-violet-300 font-semibold"}>{ch}</span>
+        ) : (<span key={i}>{ch}</span>)
+      )}
+    </span>
   );
 }
 
-// =============================================================================
-// TOC Sidebar
-// =============================================================================
+type FilterTab = "all" | DisplayGroup;
+const FILTER_TABS: FilterTab[] = ["all", ...STATUS_ORDER];
 
-function TocSidebar({
-  groups,
-  activeGroup,
-  onNavigate,
-}: {
-  groups: { group: DisplayGroup; count: number }[];
-  activeGroup: DisplayGroup | null;
-  onNavigate: (group: DisplayGroup) => void;
-}) {
-  return (
-    <div className="w-[200px] shrink-0 hidden lg:block">
-      <div className="sticky top-6">
-        <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
-          <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-            Status Groups
-          </h3>
-          <div className="flex flex-col gap-1">
-            {groups.map(({ group, count }) => {
-              const cfg = GROUP_CONFIG[group];
-              const isActive = activeGroup === group;
-              return (
-                <button
-                  key={group}
-                  onClick={() => onNavigate(group)}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all duration-200 ${
-                    isActive
-                      ? "bg-white/[0.06] border border-white/[0.08]"
-                      : "hover:bg-white/[0.03] border border-transparent"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${cfg.dot} ${group === "pipeline" && isActive ? "animate-pulse" : ""}`} />
-                    <span className={`text-[13px] ${isActive ? "text-zinc-100 font-medium" : "text-zinc-400"}`}>
-                      {cfg.label}
-                    </span>
-                  </div>
-                  <span
-                    className={`text-[11px] font-mono tabular-nums px-1.5 py-0.5 rounded-md ${
-                      isActive
-                        ? `${cfg.bg} ${cfg.text}`
-                        : "text-zinc-500 bg-white/[0.03]"
-                    }`}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// Main page
-// =============================================================================
+// ── Page ────────────────────────────────────────────────────────────────────
 
 export default function SpecificationsPage() {
   const router = useRouter();
   const { activeProjectId } = useProjectContext();
-  const { specifications, loaded, getLatestVersion, deleteSpecification } = useSpecificationStore(activeProjectId);
+  const { specifications, loaded, getLatestVersion, deleteSpecification } =
+    useSpecificationStore(activeProjectId);
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<Set<DisplayGroup>>(new Set());
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<DisplayGroup>>(new Set());
-  const [activeGroup, setActiveGroup] = useState<DisplayGroup | null>("pipeline");
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
+  // Required vimstyle state
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [query, setQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const filterRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const listRef = useRef<HTMLDivElement>(null);
 
-  // Mount animation
-  useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 50);
-    return () => clearTimeout(t);
-  }, []);
+  const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
 
-  // Cmd+K shortcut
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
+  // Delete confirmation
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  // Close filter dropdown on outside click
-  useEffect(() => {
-    if (!filterOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
-        setFilterOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [filterOpen]);
+  // Mouse interaction — prevent accidental hover-select on load
+  const [mouseActive, setMouseActive] = useState(false);
+  const lastMousePos = useRef({ x: 0, y: 0 });
 
-  // Close filter dropdown on Escape
-  useEffect(() => {
-    if (!filterOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFilterOpen(false);
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [filterOpen]);
+  // ── Filtered + grouped flat list ────────────────────────────────────────
 
-  // IntersectionObserver for active TOC group
-  useEffect(() => {
-    const root = scrollRef.current;
-    if (!root) return;
-    const observers: IntersectionObserver[] = [];
-    STATUS_ORDER.forEach((group) => {
-      const el = groupRefs.current[group];
-      if (!el) return;
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          if (entry.isIntersecting) {
-            setActiveGroup(group);
-          }
-        },
-        { root, threshold: 0.1, rootMargin: "-80px 0px -60% 0px" }
-      );
-      observer.observe(el);
-      observers.push(observer);
-    });
-    return () => observers.forEach((o) => o.disconnect());
-  }, [mounted, loaded]);
-
-  // Filter specs by search
-  const filteredSpecs = useMemo(() => {
-    if (!searchQuery.trim()) return specifications;
-    const q = searchQuery.toLowerCase();
-    return specifications.filter((s) => s.title.toLowerCase().includes(q));
-  }, [searchQuery, specifications]);
-
-  // Group specs
-  const groupedSpecs = useMemo(() => {
-    const map: Record<DisplayGroup, Specification[]> = {
-      pipeline: [],
-      draft: [],
-      done: [],
-      failed: [],
-    };
-    filteredSpecs.forEach((s) => map[toDisplayGroup(s.status)].push(s));
-    return map;
-  }, [filteredSpecs]);
-
-  // Check if any specs are visible after both filters
-  const hasVisibleSpecs = useMemo(() => {
-    return STATUS_ORDER.some((group) => {
-      if (statusFilter.size > 0 && !statusFilter.has(group)) return false;
-      return groupedSpecs[group].length > 0;
-    });
-  }, [groupedSpecs, statusFilter]);
-
-  const toggleStatusFilter = useCallback((group: DisplayGroup) => {
-    setStatusFilter((prev) => {
-      const next = new Set(prev);
-      if (next.has(group)) next.delete(group);
-      else next.add(group);
-      return next;
-    });
-  }, []);
-
-  const toggleGroup = useCallback((group: DisplayGroup) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(group)) next.delete(group);
-      else next.add(group);
-      return next;
-    });
-  }, []);
-
-  const navigateToGroup = useCallback((group: DisplayGroup) => {
-    const el = groupRefs.current[group];
-    if (el) {
-      setActiveGroup(group);
-      setCollapsedGroups((prev) => {
-        const next = new Set(prev);
-        next.delete(group);
-        return next;
-      });
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
+  const filtered = useMemo(() => {
+    let specs = query
+      ? specifications.filter((s) => fuzzyMatch(s.title, query))
+      : specifications;
+    if (activeFilter !== "all") {
+      specs = specs.filter((s) => toDisplayGroup(s.status) === activeFilter);
     }
-  }, []);
+    const result: Specification[] = [];
+    for (const group of STATUS_ORDER) {
+      result.push(...specs.filter((s) => toDisplayGroup(s.status) === group));
+    }
+    return result;
+  }, [specifications, query, activeFilter]);
 
-  const tocGroups = STATUS_ORDER
-    .filter((group) => statusFilter.size === 0 || statusFilter.has(group))
-    .map((group) => ({
-      group,
-      count: groupedSpecs[group].length,
-    }));
+  // Tab counts (computed from search-filtered specs, ignoring status filter)
+  const tabCounts = useMemo(() => {
+    const specs = query
+      ? specifications.filter((s) => fuzzyMatch(s.title, query))
+      : specifications;
+    const counts: Record<FilterTab, number> = { all: specs.length, pipeline: 0, draft: 0, done: 0, failed: 0 };
+    for (const s of specs) counts[toDisplayGroup(s.status)]++;
+    return counts;
+  }, [specifications, query]);
+
+  // Section boundaries (group → startIndex + count)
+  const sections = useMemo(() => {
+    const result: { group: DisplayGroup; startIndex: number; count: number }[] = [];
+    let idx = 0;
+    for (const group of STATUS_ORDER) {
+      const count = filtered.filter((s) => toDisplayGroup(s.status) === group).length;
+      if (count > 0) {
+        result.push({ group, startIndex: idx, count });
+        idx += count;
+      }
+    }
+    return result;
+  }, [filtered]);
+
+  // ── Clamp / reset selection ─────────────────────────────────────────────
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [activeFilter]);
+
+  useEffect(() => {
+    setSelectedIndex((i) => Math.min(i, Math.max(0, filtered.length - 1)));
+  }, [filtered.length]);
+
+  // ── Scroll into view ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!listRef.current) return;
+    const el = listRef.current.querySelector(
+      `[data-spec-index="${selectedIndex}"]`
+    ) as HTMLElement | null;
+    el?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
+
+  // ── Mouse tracking ──────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const dx = e.clientX - lastMousePos.current.x;
+      const dy = e.clientY - lastMousePos.current.y;
+      lastMousePos.current = { x: e.clientX, y: e.clientY };
+      if (!mouseActive && (Math.abs(dx) > 1 || Math.abs(dy) > 1)) setMouseActive(true);
+    };
+    window.addEventListener("mousemove", handler);
+    return () => window.removeEventListener("mousemove", handler);
+  }, [mouseActive]);
+
+  // ── Keyboard handler ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // LAYER 1: Search focused
+      if (searchFocused) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          if (query) {
+            setQuery("");
+          } else {
+            searchRef.current?.blur();
+            setSearchFocused(false);
+          }
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          searchRef.current?.blur();
+          setSearchFocused(false);
+        } else if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setSelectedIndex((i) => Math.max(i - 1, 0));
+        }
+        return;
+      }
+
+      // LAYER 2: Delete confirmation active
+      if (confirmDelete) {
+        if (e.key === "Enter" || e.key === "d") {
+          e.preventDefault();
+          deleteSpecification(confirmDelete);
+          setConfirmDelete(null);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          setConfirmDelete(null);
+        }
+        return;
+      }
+
+      // LAYER 3: List navigation
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      if (e.key === "/") {
+        e.preventDefault();
+        setSearchFocused(true);
+        requestAnimationFrame(() => searchRef.current?.focus());
+      } else if (e.key === "h" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        setActiveFilter((f) => {
+          const i = FILTER_TABS.indexOf(f);
+          return FILTER_TABS[Math.max(0, i - 1)];
+        });
+      } else if (e.key === "l" || e.key === "ArrowRight") {
+        e.preventDefault();
+        setActiveFilter((f) => {
+          const i = FILTER_TABS.indexOf(f);
+          return FILTER_TABS[Math.min(FILTER_TABS.length - 1, i + 1)];
+        });
+      } else if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
+      } else if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Tab" && !e.shiftKey) {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
+      } else if (e.key === "Tab" && e.shiftKey) {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const spec = filtered[selectedIndex];
+        if (spec) router.push(`/specifications/${spec.id}`);
+      } else if (e.key === "d") {
+        e.preventDefault();
+        const spec = filtered[selectedIndex];
+        if (spec) setConfirmDelete(spec.id);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        router.back();
+      }
+    };
+
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [searchFocused, query, filtered, selectedIndex, confirmDelete, deleteSpecification, router, activeFilter]);
+
+  // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className={`h-full bg-zinc-950 text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
-      <div ref={scrollRef} className="h-full overflow-auto">
-        <div className="max-w-full px-6 py-6">
-          {/* Breadcrumb + header */}
-          <div className="mb-6 animate-fade-in-up stagger-1">
-            <div className="flex items-center gap-1.5 text-[12px] text-zinc-500 mb-2">
-              <span className="hover:text-zinc-300 cursor-pointer transition-colors">Home</span>
-              <span>/</span>
-              <span className="text-zinc-300">Specifications</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">Specifications</h1>
-                <p className="mt-1 text-[13px] text-zinc-500">
-                  Project specifications and requirements
-                </p>
-              </div>
-              <KbdButton shortcut="n" href="/specifications/new">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                New Spec
-              </KbdButton>
+    <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
+      {/* 1. Header */}
+      <div className="shrink-0 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-baseline gap-2">
+              <h1 className="text-lg font-semibold text-zinc-100 tracking-tight">Specifications</h1>
+              <span className="text-[12px] text-zinc-500">
+                {loaded ? `${specifications.length} spec${specifications.length !== 1 ? "s" : ""}` : "Loading\u2026"}
+              </span>
             </div>
           </div>
+          <KbdButton shortcut="n" href="/specifications/new" active={!searchFocused && !confirmDelete}>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            New Spec
+          </KbdButton>
+        </div>
+      </div>
 
-          {!loaded ? (
-            <div className="flex h-64 items-center justify-center text-zinc-500">Loading...</div>
-          ) : specifications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
-              <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-2xl p-12 text-center">
-                <svg className="h-12 w-12 text-zinc-600 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-sm text-zinc-400 mt-4">No specifications yet</p>
-                <Link
-                  href="/specifications/new"
-                  className="inline-block mt-4 text-[13px] font-medium text-violet-400 hover:text-violet-300 transition-colors"
-                >
-                  Create your first specification
-                </Link>
-              </div>
+      {/* 2. Filter tabs */}
+      <div className="shrink-0 px-6 pb-3">
+        <div className="flex items-center gap-3 mb-1">
+          <span className="text-[10px] text-zinc-600 flex items-center gap-1">
+            <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&larr;</kbd>
+            <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&rarr;</kbd>
+            <span className="ml-0.5">filter</span>
+          </span>
+        </div>
+        <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl p-1 inline-flex gap-1">
+          {FILTER_TABS.map((tab) => {
+            const isActive = activeFilter === tab;
+            const label = tab === "all" ? "All" : GROUP_CONFIG[tab].label;
+            const dot = tab !== "all" ? GROUP_CONFIG[tab].dot : null;
+            const count = tabCounts[tab];
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveFilter(tab)}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium transition-all duration-200 ${
+                  isActive
+                    ? "bg-white/[0.06] text-zinc-100"
+                    : "text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-300"
+                }`}
+              >
+                {dot && <span className={`h-1.5 w-1.5 rounded-full ${dot} ${tab === "pipeline" ? "animate-pulse" : ""}`} />}
+                {label}
+                <span className={`text-[10px] font-mono tabular-nums ${isActive ? "text-zinc-400" : "text-zinc-600"}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 3. Search + list container */}
+      <div className="flex-1 flex flex-col min-h-0 mx-6 mb-2 border border-white/[0.06] rounded-xl overflow-hidden">
+        {/* Search bar */}
+        <div className="shrink-0 border-b border-white/[0.06] px-4 py-2.5">
+          <div className="flex items-center gap-2">
+            <svg className="h-4 w-4 shrink-0 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            {!searchFocused && !query && (
+              <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">/</kbd>
+            )}
+            <input
+              ref={searchRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              placeholder={"Filter specifications\u2026"}
+              className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-600 outline-none"
+            />
+          </div>
+        </div>
+
+        {/* List */}
+        <div ref={listRef} className="flex-1 overflow-y-auto">
+        {!loaded ? (
+          <div className="py-16 text-center text-sm text-zinc-600">Loading\u2026</div>
+        ) : filtered.length === 0 ? (
+          specifications.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <svg className="h-10 w-10 text-zinc-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="text-sm text-zinc-500">No specifications yet</p>
+              <p className="text-[12px] text-zinc-600 mt-1">
+                Press <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">n</kbd> to create one
+              </p>
             </div>
           ) : (
-            <>
-              {/* Search bar + status filter */}
-              <div className="relative z-10 mb-5 animate-fade-in-up" style={{ animationDelay: "200ms" }}>
-                <div className="flex items-center gap-2">
-                  <div className="search-glow relative flex-1 flex items-center backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl transition-all duration-300">
-                    <IconSearch className="w-4 h-4 text-zinc-500 ml-4 shrink-0" />
-                    <input
-                      ref={searchRef}
-                      type="text"
-                      placeholder="Search specifications..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="flex-1 bg-transparent text-[13px] text-zinc-200 placeholder:text-zinc-600 py-3 px-3 outline-none"
-                    />
-                    <kbd className="hidden sm:inline-flex items-center gap-0.5 text-[10px] text-zinc-500 bg-white/[0.05] border border-white/[0.08] px-1.5 py-0.5 rounded-md mr-3 font-mono">
-                      <span className="text-[11px]">&#8984;</span>K
-                    </kbd>
+            <div className="py-16 text-center">
+              <p className="text-sm text-zinc-500">No matching specifications</p>
+              <p className="text-[12px] text-zinc-600 mt-1">Try a different search</p>
+            </div>
+          )
+        ) : (
+          sections.map(({ group, startIndex, count }) => {
+            const cfg = GROUP_CONFIG[group];
+            return (
+              <div key={group}>
+                {/* Sticky section header */}
+                <div className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur-sm border-b border-zinc-800/50 px-6 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${cfg.dot} ${group === "pipeline" ? "animate-pulse" : ""}`} />
+                    <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">{cfg.label}</span>
+                    <span className="text-[11px] text-zinc-600 font-mono">({count})</span>
                   </div>
+                </div>
 
-                  {/* Status filter dropdown */}
-                  <div ref={filterRef} className="relative">
-                    <button
-                      onClick={() => setFilterOpen(!filterOpen)}
-                      className={`inline-flex items-center gap-2 px-3.5 py-2.5 text-[13px] font-medium backdrop-blur-xl border rounded-xl transition-all duration-200 whitespace-nowrap ${
-                        statusFilter.size > 0
-                          ? "bg-violet-500/10 border-violet-500/20 text-violet-300 hover:bg-violet-500/15"
-                          : "bg-white/[0.03] border-white/[0.06] text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-300"
+                {/* Items */}
+                {filtered.slice(startIndex, startIndex + count).map((spec, gi) => {
+                  const idx = startIndex + gi;
+                  const isSelected = idx === selectedIndex;
+                  const isDeleting = confirmDelete === spec.id;
+                  const badge = STATUS_BADGE[spec.status];
+                  const version = getLatestVersion(spec.id);
+
+                  return (
+                    <div
+                      key={spec.id}
+                      data-spec-index={idx}
+                      onClick={() => {
+                        setSelectedIndex(idx);
+                        if (!confirmDelete) router.push(`/specifications/${spec.id}`);
+                      }}
+                      onMouseMove={() => {
+                        if (mouseActive && selectedIndex !== idx) setSelectedIndex(idx);
+                      }}
+                      className={`border-b border-zinc-800/50 px-6 py-3 transition-colors cursor-pointer ${
+                        isDeleting
+                          ? "bg-red-500/[0.06] border-l-2 border-l-red-500/60"
+                          : isSelected
+                            ? "bg-violet-500/[0.04] border-l-2 border-l-violet-500/60"
+                            : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
                       }`}
                     >
-                      <IconFilter className="w-4 h-4" />
-                      <span>Status</span>
-                      {statusFilter.size > 0 && (
-                        <span className="inline-flex items-center justify-center w-5 h-5 text-[11px] font-bold bg-violet-500 text-white rounded-full">
-                          {statusFilter.size}
-                        </span>
-                      )}
-                      <IconChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${filterOpen ? "rotate-180" : ""}`} />
-                    </button>
+                      <div className="flex items-center gap-3">
+                        {/* Dot indicator */}
+                        <div className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
+                          isDeleting ? "bg-red-400" : isSelected ? "bg-violet-400" : "bg-transparent"
+                        }`} />
 
-                    {filterOpen && (
-                      <div className="absolute right-0 top-full mt-2 w-52 z-50 backdrop-blur-xl bg-zinc-900/95 border border-white/[0.08] rounded-xl shadow-xl shadow-black/30 p-2">
-                        <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-2 py-1.5 mb-1">
-                          Filter by status
-                        </div>
-                        {STATUS_ORDER.map((group) => {
-                          const cfg = GROUP_CONFIG[group];
-                          const isSelected = statusFilter.has(group);
-                          return (
-                            <button
-                              key={group}
-                              onClick={() => toggleStatusFilter(group)}
-                              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150 ${
-                                isSelected
-                                  ? "bg-white/[0.06]"
-                                  : "hover:bg-white/[0.03]"
-                              }`}
-                            >
-                              <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-                              <span className={`text-[13px] flex-1 text-left ${isSelected ? "text-zinc-100 font-medium" : "text-zinc-400"}`}>
-                                {cfg.label}
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <FuzzyText
+                              text={spec.title}
+                              query={query}
+                              className="text-[13px] font-medium text-zinc-200 truncate"
+                            />
+                            {isSelected && !isDeleting && (
+                              <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600 shrink-0">Enter</kbd>
+                            )}
+                            {isDeleting && (
+                              <span className="flex items-center gap-1.5 shrink-0">
+                                <kbd className="rounded bg-red-500/15 border border-red-500/20 px-1 py-0.5 text-[9px] font-medium text-red-400">Enter to delete</kbd>
+                                <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">Esc cancel</kbd>
                               </span>
-                              {isSelected && (
-                                <svg className="w-4 h-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                                </svg>
-                              )}
-                            </button>
-                          );
-                        })}
-                        {statusFilter.size > 0 && (
-                          <div className="border-t border-white/[0.06] mt-1.5 pt-1.5">
-                            <button
-                              onClick={() => setStatusFilter(new Set())}
-                              className="w-full text-[12px] text-zinc-500 hover:text-zinc-300 py-1.5 px-2.5 rounded-lg hover:bg-white/[0.03] transition-colors text-left"
-                            >
-                              Clear filters
-                            </button>
+                            )}
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${badge.bg} ${badge.text}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
+                              {badge.label}
+                            </span>
+                            {version && (
+                              <span className="text-[11px] text-zinc-600 font-mono shrink-0">
+                                v{version.versionNumber}
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Content area: list + TOC sidebar */}
-              <div className="flex gap-6">
-                {/* Main spec list */}
-                <div className="flex-1 min-w-0">
-                  {STATUS_ORDER.map((group) => {
-                    if (statusFilter.size > 0 && !statusFilter.has(group)) return null;
-                    const specs = groupedSpecs[group];
-                    if (specs.length === 0) return null;
-                    const cfg = GROUP_CONFIG[group];
-                    const isCollapsed = collapsedGroups.has(group);
-
-                    return (
-                      <div
-                        key={group}
-                        ref={(el) => { groupRefs.current[group] = el; }}
-                        className="mb-4"
-                      >
-                        {/* Group header */}
-                        <button
-                          onClick={() => toggleGroup(group)}
-                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/[0.03] transition-colors duration-200 mb-1 group"
-                        >
-                          <IconChevron open={!isCollapsed} className="w-3.5 h-3.5 text-zinc-500" />
-                          <span className={`w-2 h-2 rounded-full ${cfg.dot} ${group === "pipeline" ? "animate-pulse" : ""}`} />
-                          <span className={`text-[13px] font-semibold ${cfg.color}`}>
-                            {cfg.label}
+                          <span className="text-[11px] text-zinc-500 mt-0.5 block">
+                            {relativeTime(spec.updatedAt)}
                           </span>
-                          <span className="text-[11px] text-zinc-500 font-mono">
-                            ({specs.length})
-                          </span>
-                        </button>
-
-                        {/* Collapsible spec list */}
-                        <div
-                          className="overflow-hidden transition-all duration-300 ease-in-out"
-                          style={{
-                            maxHeight: isCollapsed ? 0 : specs.length * 200,
-                            opacity: isCollapsed ? 0 : 1,
-                          }}
-                        >
-                          <div className="backdrop-blur-xl bg-white/[0.01] border border-white/[0.06] rounded-xl overflow-hidden">
-                            {specs.map((spec, idx) => (
-                              <SpecRow
-                                key={spec.id}
-                                spec={spec}
-                                version={getLatestVersion(spec.id)?.versionNumber ?? null}
-                                onView={() => router.push(`/specifications/${spec.id}`)}
-                                onDelete={
-                                  confirmDelete === spec.id
-                                    ? async () => { await deleteSpecification(spec.id); setConfirmDelete(null); }
-                                    : () => setConfirmDelete(spec.id)
-                                }
-                                confirmingDelete={confirmDelete === spec.id}
-                                onCancelDelete={() => setConfirmDelete(null)}
-                                style={{ animationDelay: `${300 + idx * 60}ms` }}
-                              />
-                            ))}
-                          </div>
                         </div>
                       </div>
-                    );
-                  })}
-
-                  {/* Empty search/filter state */}
-                  {!hasVisibleSpecs && (
-                    <div className="flex flex-col items-center justify-center py-20 text-center">
-                      <IconSearch className="w-8 h-8 text-zinc-600 mb-3" />
-                      <p className="text-zinc-400 text-[14px]">No specifications found</p>
-                      <p className="text-zinc-600 text-[12px] mt-1">
-                        {statusFilter.size > 0 ? "Try adjusting your filters" : "Try adjusting your search query"}
-                      </p>
                     </div>
-                  )}
-                </div>
-
-                {/* Right TOC sidebar */}
-                <TocSidebar
-                  groups={tocGroups}
-                  activeGroup={activeGroup}
-                  onNavigate={navigateToGroup}
-                />
+                  );
+                })}
               </div>
-            </>
-          )}
+            );
+          })
+        )}
         </div>
+      </div>
+
+      {/* 5. Bottom hints */}
+      <div className="shrink-0 border-t border-zinc-800 px-6 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd> navigate</span>
+        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&larr;</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&rarr;</kbd> filter</span>
+        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd> open</span>
+        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">d</kbd> delete</span>
+        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">/</kbd> search</span>
+        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Esc</kbd> back</span>
       </div>
     </div>
   );
