@@ -288,16 +288,53 @@ export default function SpecificationsPage() {
 
   return (
     <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
+      {/* Scrollable area: header + tabs + search/list container */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+
       {/* 1. Header */}
-      <div className="shrink-0 px-6 py-4">
+      <div className="px-6 py-5">
+        <div className="flex items-baseline gap-2.5">
+          <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">Specifications</h1>
+          <span className="text-sm text-zinc-500">
+            {loaded ? `${specifications.length} spec${specifications.length !== 1 ? "s" : ""}` : "Loading\u2026"}
+          </span>
+        </div>
+      </div>
+
+      {/* 2. Filter tabs + New Spec button */}
+      <div className="shrink-0 px-6 pb-4">
+        <div className="flex items-center gap-3 mb-1.5">
+          <span className="text-xs text-zinc-600 flex items-center gap-1">
+            <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">&larr;</kbd>
+            <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">&rarr;</kbd>
+            <span className="ml-0.5">filter</span>
+          </span>
+        </div>
         <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-baseline gap-2">
-              <h1 className="text-lg font-semibold text-zinc-100 tracking-tight">Specifications</h1>
-              <span className="text-[12px] text-zinc-500">
-                {loaded ? `${specifications.length} spec${specifications.length !== 1 ? "s" : ""}` : "Loading\u2026"}
-              </span>
-            </div>
+          <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl p-1 inline-flex gap-1">
+            {FILTER_TABS.map((tab) => {
+              const isActive = activeFilter === tab;
+              const label = tab === "all" ? "All" : GROUP_CONFIG[tab].label;
+              const dot = tab !== "all" ? GROUP_CONFIG[tab].dot : null;
+              const count = tabCounts[tab];
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveFilter(tab)}
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    isActive
+                      ? "bg-white/[0.06] text-zinc-100"
+                      : "text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-300"
+                  }`}
+                >
+                  {dot && <span className={`h-2 w-2 rounded-full ${dot} ${tab === "pipeline" ? "animate-pulse" : ""}`} />}
+                  {label}
+                  <span className={`text-xs font-mono tabular-nums ${isActive ? "text-zinc-400" : "text-zinc-600"}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
           <KbdButton shortcut="n" href="/specifications/new" active={!searchFocused && !confirmDelete}>
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -308,52 +345,16 @@ export default function SpecificationsPage() {
         </div>
       </div>
 
-      {/* 2. Filter tabs */}
-      <div className="shrink-0 px-6 pb-3">
-        <div className="flex items-center gap-3 mb-1">
-          <span className="text-[10px] text-zinc-600 flex items-center gap-1">
-            <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&larr;</kbd>
-            <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&rarr;</kbd>
-            <span className="ml-0.5">filter</span>
-          </span>
-        </div>
-        <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl p-1 inline-flex gap-1">
-          {FILTER_TABS.map((tab) => {
-            const isActive = activeFilter === tab;
-            const label = tab === "all" ? "All" : GROUP_CONFIG[tab].label;
-            const dot = tab !== "all" ? GROUP_CONFIG[tab].dot : null;
-            const count = tabCounts[tab];
-            return (
-              <button
-                key={tab}
-                onClick={() => setActiveFilter(tab)}
-                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-medium transition-all duration-200 ${
-                  isActive
-                    ? "bg-white/[0.06] text-zinc-100"
-                    : "text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-300"
-                }`}
-              >
-                {dot && <span className={`h-1.5 w-1.5 rounded-full ${dot} ${tab === "pipeline" ? "animate-pulse" : ""}`} />}
-                {label}
-                <span className={`text-[10px] font-mono tabular-nums ${isActive ? "text-zinc-400" : "text-zinc-600"}`}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* 3. Search + list container */}
-      <div className="flex-1 flex flex-col min-h-0 mx-6 mb-2 border border-white/[0.06] rounded-xl overflow-hidden">
+      <div className="mx-6 mb-4 border border-white/[0.06] rounded-xl overflow-hidden">
         {/* Search bar */}
-        <div className="shrink-0 border-b border-white/[0.06] px-4 py-2.5">
-          <div className="flex items-center gap-2">
-            <svg className="h-4 w-4 shrink-0 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="shrink-0 border-b border-white/[0.06] px-5 py-3">
+          <div className="flex items-center gap-2.5">
+            <svg className="h-5 w-5 shrink-0 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
             {!searchFocused && !query && (
-              <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">/</kbd>
+              <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-xs font-medium text-violet-400">/</kbd>
             )}
             <input
               ref={searchRef}
@@ -363,13 +364,13 @@ export default function SpecificationsPage() {
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
               placeholder={"Filter specifications\u2026"}
-              className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-600 outline-none"
+              className="flex-1 bg-transparent text-base text-zinc-200 placeholder-zinc-600 outline-none"
             />
           </div>
         </div>
 
         {/* List */}
-        <div ref={listRef} className="flex-1 overflow-y-auto">
+        <div ref={listRef}>
         {!loaded ? (
           <div className="py-16 text-center text-sm text-zinc-600">Loading\u2026</div>
         ) : filtered.length === 0 ? (
@@ -378,15 +379,15 @@ export default function SpecificationsPage() {
               <svg className="h-10 w-10 text-zinc-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <p className="text-sm text-zinc-500">No specifications yet</p>
-              <p className="text-[12px] text-zinc-600 mt-1">
-                Press <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">n</kbd> to create one
+              <p className="text-base text-zinc-500">No specifications yet</p>
+              <p className="text-sm text-zinc-600 mt-1.5">
+                Press <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">n</kbd> to create one
               </p>
             </div>
           ) : (
             <div className="py-16 text-center">
-              <p className="text-sm text-zinc-500">No matching specifications</p>
-              <p className="text-[12px] text-zinc-600 mt-1">Try a different search</p>
+              <p className="text-base text-zinc-500">No matching specifications</p>
+              <p className="text-sm text-zinc-600 mt-1.5">Try a different search</p>
             </div>
           )
         ) : (
@@ -395,11 +396,11 @@ export default function SpecificationsPage() {
             return (
               <div key={group}>
                 {/* Sticky section header */}
-                <div className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur-sm border-b border-zinc-800/50 px-6 py-2">
+                <div className="sticky top-0 z-10 bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-800/50 px-5 py-2.5">
                   <div className="flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full ${cfg.dot} ${group === "pipeline" ? "animate-pulse" : ""}`} />
-                    <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">{cfg.label}</span>
-                    <span className="text-[11px] text-zinc-600 font-mono">({count})</span>
+                    <span className={`h-2.5 w-2.5 rounded-full ${cfg.dot} ${group === "pipeline" ? "animate-pulse" : ""}`} />
+                    <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{cfg.label}</span>
+                    <span className="text-xs text-zinc-600 font-mono">({count})</span>
                   </div>
                 </div>
 
@@ -422,17 +423,17 @@ export default function SpecificationsPage() {
                       onMouseMove={() => {
                         if (mouseActive && selectedIndex !== idx) setSelectedIndex(idx);
                       }}
-                      className={`border-b border-zinc-800/50 px-6 py-3 transition-colors cursor-pointer ${
+                      className={`border-b border-zinc-800/50 px-5 py-3.5 transition-colors cursor-pointer ${
                         isDeleting
                           ? "bg-red-500/[0.06] border-l-2 border-l-red-500/60"
                           : isSelected
-                            ? "bg-violet-500/[0.04] border-l-2 border-l-violet-500/60"
+                            ? "bg-violet-500/[0.08] border-l-2 border-l-violet-500"
                             : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         {/* Dot indicator */}
-                        <div className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
+                        <div className={`h-2 w-2 shrink-0 rounded-full transition-colors ${
                           isDeleting ? "bg-red-400" : isSelected ? "bg-violet-400" : "bg-transparent"
                         }`} />
 
@@ -442,28 +443,28 @@ export default function SpecificationsPage() {
                             <FuzzyText
                               text={spec.title}
                               query={query}
-                              className="text-[13px] font-medium text-zinc-200 truncate"
+                              className="text-[15px] font-medium text-zinc-200 truncate"
                             />
-                            {isSelected && !isDeleting && (
-                              <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600 shrink-0">Enter</kbd>
-                            )}
-                            {isDeleting && (
-                              <span className="flex items-center gap-1.5 shrink-0">
-                                <kbd className="rounded bg-red-500/15 border border-red-500/20 px-1 py-0.5 text-[9px] font-medium text-red-400">Enter to delete</kbd>
-                                <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">Esc cancel</kbd>
-                              </span>
-                            )}
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${badge.bg} ${badge.text}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
+                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${badge.bg} ${badge.text}`}>
+                              <span className={`w-2 h-2 rounded-full ${badge.dot}`} />
                               {badge.label}
                             </span>
                             {version && (
-                              <span className="text-[11px] text-zinc-600 font-mono shrink-0">
+                              <span className="text-xs text-zinc-600 font-mono shrink-0">
                                 v{version.versionNumber}
                               </span>
                             )}
+                            {isSelected && !isDeleting && (
+                              <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400 shrink-0">Enter</kbd>
+                            )}
+                            {isDeleting && (
+                              <span className="flex items-center gap-1.5 shrink-0">
+                                <kbd className="rounded bg-red-500/15 border border-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-400">Enter to delete</kbd>
+                                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">Esc cancel</kbd>
+                              </span>
+                            )}
                           </div>
-                          <span className="text-[11px] text-zinc-500 mt-0.5 block">
+                          <span className="text-xs text-zinc-500 mt-1 block">
                             {relativeTime(spec.updatedAt)}
                           </span>
                         </div>
@@ -478,14 +479,16 @@ export default function SpecificationsPage() {
         </div>
       </div>
 
+      </div>{/* end scroll area */}
+
       {/* 5. Bottom hints */}
-      <div className="shrink-0 border-t border-zinc-800 px-6 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd> navigate</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&larr;</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&rarr;</kbd> filter</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd> open</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">d</kbd> delete</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">/</kbd> search</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Esc</kbd> back</span>
+      <div className="shrink-0 border-t border-zinc-800 px-6 py-2.5 flex items-center gap-5 text-xs text-zinc-600">
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">j</kbd> <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">k</kbd> navigate</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">&larr;</kbd> <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">&rarr;</kbd> filter</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">Enter</kbd> open</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">d</kbd> delete</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">/</kbd> search</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">Esc</kbd> back</span>
       </div>
     </div>
   );
