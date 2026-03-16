@@ -1303,8 +1303,8 @@ export default function DashboardPage() {
           {activeProject && (
             <div className="mb-6 animate-fade-in-up" style={{ animationDelay: "50ms" }}>
               <div className="flex items-center gap-3 mb-2 text-[11px] text-zinc-600">
-                <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Tab</kbd> cycle cards</span>
-                <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&larr;</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&rarr;</kbd> switch tab</span>
+                <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Tab</kbd> cycle cards</span>
+                <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">&larr;</kbd> <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">&rarr;</kbd> switch tab</span>
               </div>
               <TabBar active={tab} onChange={setTab} />
             </div>
@@ -1344,7 +1344,7 @@ export default function DashboardPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 animate-fade-in-up" style={{ animationDelay: "100ms" }}>
                 {/* Recent Specifications */}
                 <div className={`backdrop-blur-xl bg-white/[0.03] rounded-xl overflow-hidden transition-colors ${
-                  overviewCard === 0 ? "border-2 border-violet-500/40" : "border border-white/[0.06]"
+                  overviewCard === 0 ? "border-2 border-violet-400/50 shadow-[0_0_20px_rgba(139,92,246,0.15)]" : "border border-white/[0.06]"
                 }`} onClick={() => setOverviewCard(0)}>
                   <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
                     <div className="flex items-center gap-2">
@@ -1355,10 +1355,10 @@ export default function DashboardPage() {
                       {overviewCard === 0 && (
                         <>
                           <Link href="/specifications/new" className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">
-                            New <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">n</kbd>
+                            New <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">n</kbd>
                           </Link>
                           <Link href="/specifications" className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">
-                            All <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">a</kbd>
+                            All <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">a</kbd>
                           </Link>
                         </>
                       )}
@@ -1380,13 +1380,13 @@ export default function DashboardPage() {
                         const isItemSelected = overviewCard === 0 && overviewItemIndex === idx;
                         return (
                           <Link key={s.id} href={`/specifications/${s.id}`} className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
-                            isItemSelected ? "bg-violet-500/[0.06] border-l-2 border-l-violet-500/60" : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
+                            isItemSelected ? "bg-violet-500/15 border-l-2 border-l-violet-400" : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
                           }`}>
                             <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${isItemSelected ? "bg-violet-400" : "bg-transparent"}`} />
                             <div className="flex-1 flex items-center gap-2 min-w-0">
                               <span className="text-[13px] text-zinc-200 truncate">{s.title}</span>
                               {isItemSelected && (
-                                <kbd className="shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">Enter</kbd>
+                                <kbd className="shrink-0 rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Enter</kbd>
                               )}
                             </div>
                             <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${color}`}>
@@ -1404,7 +1404,7 @@ export default function DashboardPage() {
 
                 {/* Recent Pipelines */}
                 <div className={`backdrop-blur-xl bg-white/[0.03] rounded-xl overflow-hidden transition-colors ${
-                  overviewCard === 1 ? "border-2 border-indigo-500/40" : "border border-white/[0.06]"
+                  overviewCard === 1 ? "border-2 border-indigo-400/50 shadow-[0_0_20px_rgba(99,102,241,0.15)]" : "border border-white/[0.06]"
                 }`} onClick={() => setOverviewCard(1)}>
                   <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
                     <div className="flex items-center gap-2">
@@ -1413,7 +1413,7 @@ export default function DashboardPage() {
                     </div>
                     {overviewCard === 1 && (
                       <Link href="/pipelines" className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">
-                        All <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">a</kbd>
+                        All <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">a</kbd>
                       </Link>
                     )}
                   </div>
@@ -1436,13 +1436,13 @@ export default function DashboardPage() {
                         const isItemSelected = overviewCard === 1 && overviewItemIndex === idx;
                         return (
                           <Link key={r.id} href={`/pipelines/${r.id}`} className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
-                            isItemSelected ? "bg-indigo-500/[0.06] border-l-2 border-l-indigo-500/60" : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
+                            isItemSelected ? "bg-indigo-500/15 border-l-2 border-l-indigo-400" : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
                           }`}>
                             <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${isItemSelected ? "bg-indigo-400" : "bg-transparent"}`} />
                             <div className="flex-1 flex items-center gap-2 min-w-0">
                               <span className="text-[13px] text-zinc-200 truncate">{r.specTitle}</span>
                               {isItemSelected && (
-                                <kbd className="shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">Enter</kbd>
+                                <kbd className="shrink-0 rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Enter</kbd>
                               )}
                             </div>
                             {r.reviewScore !== null && (

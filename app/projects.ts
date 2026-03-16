@@ -12,7 +12,9 @@ export interface Project {
   maxRetries: number;
   /** Git root path for monorepo apps (null for single-repo projects) */
   repoPath: string | null;
+  /** Lines to scroll per j/k press in view mode (default: 5) */
+  scrollLines: number;
 }
 
-/** Fields required when creating a new project (pipelineThreshold and maxRetries have DB defaults) */
-export type NewProject = Omit<Project, "id" | "pipelineThreshold" | "maxRetries" | "repoPath"> & { pipelineThreshold?: number; maxRetries?: number; repoPath?: string | null };
+/** Fields required when creating a new project (pipelineThreshold, maxRetries, scrollLines have DB defaults) */
+export type NewProject = Omit<Project, "id" | "pipelineThreshold" | "maxRetries" | "repoPath" | "scrollLines"> & { pipelineThreshold?: number; maxRetries?: number; repoPath?: string | null; scrollLines?: number };

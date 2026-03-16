@@ -87,6 +87,7 @@ interface OutlineItem {
   value: string;
   headingId?: string;
   headingLevel?: number;
+  headingLine?: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -314,6 +315,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
       value: `H${h.level}`,
       headingId: h.id,
       headingLevel: h.level,
+      headingLine: h.line,
     }));
   }, [headings]);
 
@@ -595,8 +597,16 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
 
       // ---- Layer 5: Title editing ----
       if (editingTitle) {
-        if (e.key === "Escape" || e.key === "Enter") {
+        if (e.key === "Enter") {
           e.preventDefault();
+          setEditingTitle(false);
+          titleInputRef.current?.blur();
+          if (spec && title !== spec.title) updateTitle(id, title);
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          if (spec) setTitle(spec.title);
           setEditingTitle(false);
           titleInputRef.current?.blur();
           return;
@@ -630,24 +640,30 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
         return;
       }
 
-      // j/k — navigate outline (only when left pane active)
-      if (activePane === "left") {
-        if (e.key === "j") {
-          e.preventDefault();
-          const next = Math.min(outlineIndex + 1, filteredOutline.length - 1);
+      // j/k/arrows — navigate outline (left pane) or scroll editor (right pane view mode)
+      if (e.key === "j" || e.key === "k" || e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const isDown = e.key === "j" || e.key === "ArrowDown";
+        if (activePane === "left") {
+          const next = isDown
+            ? Math.min(outlineIndex + 1, filteredOutline.length - 1)
+            : Math.max(outlineIndex - 1, 0);
           setOutlineIndex(next);
           scrollOutlineItemIntoView(next);
           scrollEditorToOutlineItem(next);
-          return;
+        } else if (editorViewOnly) {
+          // Scroll the editor's inner scrollable container
+          const scrollLines = activeProject?.scrollLines ?? 5;
+          const wrapper = document.querySelector("[data-spec-editor]");
+          // Find the first overflow-y-auto child (the actual scrollable area)
+          const scrollable = wrapper?.querySelector(".overflow-y-auto") ?? wrapper;
+          if (scrollable) {
+            const lineHeight = 24;
+            const delta = scrollLines * lineHeight * (isDown ? 1 : -1);
+            scrollable.scrollBy({ top: delta, behavior: "smooth" });
+          }
         }
-        if (e.key === "k") {
-          e.preventDefault();
-          const prev = Math.max(outlineIndex - 1, 0);
-          setOutlineIndex(prev);
-          scrollOutlineItemIntoView(prev);
-          scrollEditorToOutlineItem(prev);
-          return;
-        }
+        return;
       }
 
       // / — search outline
@@ -659,14 +675,28 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
         return;
       }
 
-      // e — enter edit mode
+      // e — enter edit mode (jump to selected heading if any)
       if (e.key === "e" && editable) {
         e.preventDefault();
+        const selectedItem = activePane === "left" ? filteredOutline[outlineIndex] : null;
         setActivePane("right");
         setEditorViewOnly(false);
         requestAnimationFrame(() => {
-          const textarea = document.querySelector("[data-spec-editor] textarea");
-          if (textarea) (textarea as HTMLElement).focus();
+          const textarea = document.querySelector("[data-spec-editor] textarea") as HTMLTextAreaElement | null;
+          if (!textarea) return;
+          textarea.focus();
+          if (selectedItem?.headingLine !== undefined) {
+            const lines = content.split("\n");
+            let charOffset = 0;
+            for (let i = 0; i < Math.min(selectedItem.headingLine, lines.length); i++) {
+              charOffset += lines[i].length + 1;
+            }
+            const lineEnd = charOffset + (lines[selectedItem.headingLine]?.length ?? 0);
+            textarea.setSelectionRange(lineEnd, lineEnd);
+            // Scroll textarea so the cursor line is visible
+            const lineHeight = textarea.scrollHeight / lines.length;
+            textarea.scrollTop = Math.max(0, selectedItem.headingLine * lineHeight - textarea.clientHeight / 3);
+          }
         });
         return;
       }
@@ -706,10 +736,11 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
       if (e.key === "c") {
         e.preventDefault();
         setOverlayPanel("chat");
-        requestAnimationFrame(() => {
+        // Delay focus to allow overlay to render
+        setTimeout(() => {
           const chatInput = document.querySelector("[data-chat-input] textarea, [data-chat-input] input");
           if (chatInput) (chatInput as HTMLElement).focus();
-        });
+        }, 100);
         return;
       }
 
@@ -807,13 +838,18 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
   /* ================================================================== */
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-zinc-950 text-zinc-100">
+    <div
+      className="relative flex h-full flex-col overflow-hidden text-zinc-100"
+      style={{
+        background: "linear-gradient(145deg, rgba(139,92,246,0.04) 0%, rgb(9,9,11) 40%, rgba(59,130,246,0.03) 100%)",
+      }}
+    >
       <style>{keyframes}</style>
 
       {/* ============================================================= */}
       {/*  TOP ACTION BAR                                                */}
       {/* ============================================================= */}
-      <div className="relative z-10 flex items-center gap-3 border-b border-white/[0.06] bg-zinc-950/80 backdrop-blur-xl px-4 py-2">
+      <div className="relative z-10 flex items-center gap-3 border-b border-white/[0.06] bg-zinc-950 px-4 py-2">
         {/* Breadcrumb */}
         <button
           onClick={() => router.push("/specifications")}
@@ -828,14 +864,18 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
 
         {/* Title */}
         {editingTitle ? (
-          <input
-            ref={titleInputRef}
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={() => setEditingTitle(false)}
-            className="flex-1 min-w-0 bg-transparent text-[13px] font-semibold text-zinc-100 outline-none caret-violet-400 border-b border-violet-400/40 py-0.5"
-          />
+          <>
+            <input
+              ref={titleInputRef}
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => { if (spec) setTitle(spec.title); setEditingTitle(false); }}
+              className="flex-1 min-w-0 bg-transparent text-[13px] font-semibold text-zinc-100 outline-none caret-violet-400 border-b border-violet-400/40 py-0.5"
+            />
+            <kbd className="shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd>
+            <kbd className="shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Esc</kbd>
+          </>
         ) : (
           <span
             className="flex-1 min-w-0 truncate text-[13px] font-semibold text-zinc-200 cursor-default"
@@ -910,10 +950,10 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
           <button
             onClick={() => {
               setOverlayPanel("chat");
-              requestAnimationFrame(() => {
+              setTimeout(() => {
                 const chatInput = document.querySelector("[data-chat-input] textarea, [data-chat-input] input");
                 if (chatInput) (chatInput as HTMLElement).focus();
-              });
+              }, 100);
             }}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all ${
               overlayPanel === "chat"
@@ -953,14 +993,14 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
       {/* ============================================================= */}
       {/*  SPLIT PANE: LEFT OUTLINE + RIGHT EDITOR                      */}
       {/* ============================================================= */}
-      <div className="relative z-10 flex flex-1 min-h-0 overflow-hidden p-5 gap-3">
+      <div className="relative z-10 flex flex-1 min-h-0 overflow-hidden p-8 gap-5">
 
         {/* ---- LEFT COLUMN: Metadata + Outline (280px) ---- */}
-        <div className="w-[280px] shrink-0 flex flex-col gap-3 min-h-0">
+        <div className="w-[280px] shrink-0 flex flex-col gap-5 min-h-0">
 
           {/* Metadata box — static, not navigable */}
-          {spec && !outlineSearch && (
-            <div className="shrink-0 rounded-xl border border-white/[0.06] bg-zinc-950/60 px-2 py-2">
+          {spec && (
+            <div className="shrink-0 rounded-xl border-2 border-white/[0.08] bg-zinc-950/60 px-2 py-2">
               <div className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 px-2 py-1">
                 Metadata
               </div>
@@ -971,8 +1011,18 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                   {badge.label}
                 </span>
               </div>
+              <div className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-[12px] text-zinc-500">
+                <span>Type</span>
+                <span className={`inline-flex items-center gap-1.5 rounded-full border backdrop-blur-md px-2 py-0.5 text-[10px] font-medium ${
+                  spec.type === "ui-refactor"
+                    ? "bg-purple-400/10 text-purple-300 border-purple-400/20"
+                    : "bg-blue-400/10 text-blue-300 border-blue-400/20"
+                }`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${spec.type === "ui-refactor" ? "bg-purple-400" : "bg-blue-400"}`} />
+                  {spec.type === "ui-refactor" ? "UI Refactor" : "Feature"}
+                </span>
+              </div>
               {[
-                { label: "Type", value: spec.type === "ui-refactor" ? "UI Refactor" : "Feature" },
                 ...(latestVersion ? [{ label: "Version", value: `v${latestVersion.versionNumber}` }] : []),
                 { label: "Updated", value: new Date(spec.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) },
               ].map((meta) => (
@@ -989,15 +1039,18 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
 
           {/* Outline box — navigable with j/k */}
           <div
-            className={`flex-1 min-h-0 flex flex-col rounded-xl border transition-colors duration-200 ${
-              activePane === "left" ? "border-violet-500/40" : "border-white/[0.06]"
+            className={`flex-1 min-h-0 flex flex-col rounded-xl border-2 transition-colors duration-200 overflow-hidden ${
+              activePane === "left" ? "border-violet-500/40" : "border-white/[0.08]"
             } bg-zinc-950/60`}
           >
             {/* Outline search */}
-            <div className="px-3 pt-3 pb-2">
+            <div className="shrink-0 px-3 pt-3 pb-2">
               <div className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-colors ${
                 outlineSearchFocused ? "border-violet-500/40 bg-violet-500/5" : "border-white/[0.06] bg-white/[0.02]"
               }`}>
+                {!outlineSearchFocused && !outlineSearch && (
+                  <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">/</kbd>
+                )}
                 <svg className="h-3.5 w-3.5 text-zinc-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                 </svg>
@@ -1011,22 +1064,17 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                   placeholder="Filter outline..."
                   className="flex-1 bg-transparent text-[12px] text-zinc-300 placeholder:text-zinc-600 outline-none"
                 />
-                {!outlineSearchFocused && !outlineSearch && (
-                  <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">/</kbd>
-                )}
               </div>
             </div>
 
             {/* Outline items */}
-            <div ref={outlineScrollRef} className="flex-1 overflow-y-auto px-2 pb-3">
+            <div ref={outlineScrollRef} className="flex-1 min-h-0 overflow-y-auto px-2 pb-3">
               {/* Headings */}
             {filteredOutline.length > 0 && (
               <div>
-                {!outlineSearch && (
-                  <div className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 px-2 py-1.5">
-                    Document Outline
-                  </div>
-                )}
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 px-2 py-1.5">
+                  Document Outline
+                </div>
                 {filteredOutline.map((item, i) => {
                   const isActive = outlineIndex === i && activePane === "left";
                   const indent = ((item.headingLevel ?? 1) - 1) * 12;
@@ -1046,7 +1094,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                       }}
                       className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] cursor-pointer transition-all duration-150 ${
                         isActive
-                          ? "bg-violet-500/10 text-violet-300"
+                          ? "bg-violet-500/25 text-violet-100 ring-2 ring-violet-400/50 shadow-[0_0_20px_rgba(139,92,246,0.3),0_0_6px_rgba(139,92,246,0.2)]"
                           : "text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-300"
                       }`}
                       style={{ paddingLeft: `${indent + 10}px` }}
@@ -1070,8 +1118,8 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
 
         {/* ---- RIGHT PANE: Editor ---- */}
         <div
-          className={`flex-1 flex flex-col min-h-0 min-w-0 rounded-xl border transition-colors duration-200 overflow-hidden ${
-            activePane === "right" ? "border-violet-500/30" : "border-white/[0.06]"
+          className={`flex-1 flex flex-col min-h-0 min-w-0 rounded-xl border-2 transition-colors duration-200 overflow-hidden bg-zinc-950/60 ${
+            activePane === "right" ? "border-violet-500/40" : "border-white/[0.08]"
           }`}
         >
           {/* Version preview banner */}
@@ -1141,7 +1189,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
       {/*  BOTTOM HINTS BAR                                              */}
       {/* ============================================================= */}
       <div
-        className="relative z-10 flex items-center gap-4 border-t border-white/[0.06] bg-zinc-950/80 backdrop-blur-xl px-4 py-1.5"
+        className="relative z-10 flex items-center gap-4 border-t border-white/[0.06] bg-zinc-950 px-4 py-1.5"
         style={{ animation: "hintBarIn 0.3s ease-out" }}
       >
         <div className="flex items-center gap-3 text-[11px] text-zinc-600">
@@ -1285,7 +1333,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                             onClick={() => setHistoryIndex(i)}
                             className={`px-5 py-3 cursor-pointer transition-all duration-150 ${
                               isActive
-                                ? "bg-violet-500/[0.08] border-l-2 border-l-violet-500"
+                                ? "bg-violet-500/25 border-l-2 border-l-violet-400 ring-2 ring-violet-400/50 shadow-[0_0_20px_rgba(139,92,246,0.3),0_0_6px_rgba(139,92,246,0.2)]"
                                 : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
                             }`}
                           >

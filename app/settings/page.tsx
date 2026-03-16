@@ -74,9 +74,14 @@ export default function SettingsPage() {
   const { activeProject, updateProject } = useProjectContext();
   const [threshold, setThreshold] = useState(80);
   const [maxRetries, setMaxRetries] = useState(2);
+  const [scrollLines, setScrollLines] = useState(5);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  // Tab group
+  type SettingsTab = "project" | "global";
+  const [activeTab, setActiveTab] = useState<SettingsTab>(activeProject ? "project" : "global");
 
   // Host settings
   const [importPath, setImportPath] = useState("");
@@ -115,14 +120,18 @@ export default function SettingsPage() {
     if (activeProject) {
       setThreshold(activeProject.pipelineThreshold);
       setMaxRetries(activeProject.maxRetries);
+      setScrollLines(activeProject.scrollLines);
     }
   }, [activeProject]);
 
   // ── Setting items ────────────────────────────────────────────────────────
 
   const allItems: SettingItem[] = useMemo(() => {
-    const items: SettingItem[] = [
-      {
+    const items: SettingItem[] = [];
+
+    // ── Global settings ──
+    if (activeTab === "global") {
+      items.push({
         id: "import-path",
         section: "Host",
         title: "Default Import Path",
@@ -139,10 +148,11 @@ export default function SettingsPage() {
             className="w-full rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[13px] text-zinc-200 font-mono placeholder-zinc-600 outline-none transition-colors focus:border-violet-500/30"
           />
         ),
-      },
-    ];
+      });
+    }
 
-    if (activeProject) {
+    // ── Project settings ──
+    if (activeTab === "project" && activeProject) {
       items.push(
         {
           id: "threshold",
@@ -207,12 +217,49 @@ export default function SettingsPage() {
               </button>
             </div>
           ),
+        },
+        {
+          id: "scroll-lines",
+          section: "Editor",
+          title: "Scroll Lines (j/k)",
+          description: "Number of lines to scroll per j/k press in view mode",
+          render: () => (
+            <div className="flex items-center gap-3">
+              <button
+                tabIndex={-1}
+                onClick={() => setScrollLines((v) => Math.max(1, v - 1))}
+                disabled={scrollLines <= 1}
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.03] border border-white/[0.06] text-zinc-300 text-sm transition-all hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                -
+              </button>
+              <input
+                ref={(el) => { if (el) inputRefs.current.set("scroll-lines", el); }}
+                type="number"
+                min={1}
+                max={20}
+                value={scrollLines}
+                onChange={(e) => setScrollLines(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
+                onFocus={() => setEditingId("scroll-lines")}
+                onBlur={() => setEditingId(null)}
+                className="w-12 text-center rounded-lg border border-white/[0.06] bg-white/[0.03] py-1 text-lg font-bold tabular-nums text-zinc-100 font-mono outline-none transition-colors focus:border-violet-500/30 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
+              />
+              <button
+                tabIndex={-1}
+                onClick={() => setScrollLines((v) => Math.min(20, v + 1))}
+                disabled={scrollLines >= 20}
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.03] border border-white/[0.06] text-zinc-300 text-sm transition-all hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                +
+              </button>
+            </div>
+          ),
         }
       );
     }
 
     return items;
-  }, [activeProject, importPath, threshold, maxRetries]);
+  }, [activeTab, activeProject, importPath, threshold, maxRetries, scrollLines]);
 
   // ── Filtered items ───────────────────────────────────────────────────────
 
@@ -222,6 +269,11 @@ export default function SettingsPage() {
       (item) => fuzzyMatch(item.title, searchQuery) || fuzzyMatch(item.description, searchQuery) || fuzzyMatch(item.section, searchQuery)
     );
   }, [allItems, searchQuery]);
+
+  // Reset selection on tab change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [activeTab]);
 
   // Clamp selection
   useEffect(() => {
@@ -239,7 +291,7 @@ export default function SettingsPage() {
 
   const hostChanged = importPath !== savedImportPath;
   const projectChanged = activeProject
-    ? threshold !== activeProject.pipelineThreshold || maxRetries !== activeProject.maxRetries
+    ? threshold !== activeProject.pipelineThreshold || maxRetries !== activeProject.maxRetries || scrollLines !== activeProject.scrollLines
     : false;
   const hasChanges = hostChanged || projectChanged;
 
@@ -269,13 +321,13 @@ export default function SettingsPage() {
     }
 
     if (projectChanged && activeProject) {
-      await updateProject(activeProject.id, { pipelineThreshold: threshold, maxRetries });
+      await updateProject(activeProject.id, { pipelineThreshold: threshold, maxRetries, scrollLines });
     }
 
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
-  }, [hasChanges, saving, hostChanged, projectChanged, importPath, activeProject, threshold, maxRetries, updateProject]);
+  }, [hasChanges, saving, hostChanged, projectChanged, importPath, activeProject, threshold, maxRetries, scrollLines, updateProject]);
 
   // ── Keyboard ─────────────────────────────────────────────────────────────
 
@@ -309,6 +361,7 @@ export default function SettingsPage() {
           if (activeProject) {
             setThreshold(activeProject.pipelineThreshold);
             setMaxRetries(activeProject.maxRetries);
+            setScrollLines(activeProject.scrollLines);
           }
           (document.activeElement as HTMLElement)?.blur();
         }
@@ -319,7 +372,15 @@ export default function SettingsPage() {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
-      if (e.key === "/" && !e.ctrlKey && !e.metaKey) {
+      if (e.key === "h" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (activeProject) setActiveTab("project");
+        return;
+      } else if (e.key === "l" || e.key === "ArrowRight") {
+        e.preventDefault();
+        setActiveTab("global");
+        return;
+      } else if (e.key === "/" && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         setSearchOpen(true);
         requestAnimationFrame(() => searchRef.current?.focus());
@@ -373,6 +434,42 @@ export default function SettingsPage() {
         <p className="mt-0.5 text-[12px] text-zinc-500">
           {activeProject ? activeProject.title : "No project selected"}
         </p>
+      </div>
+
+      {/* Tab group */}
+      <div className="shrink-0 border-b border-zinc-800 px-6 py-2.5">
+        <div className="flex items-center gap-3 mb-1.5">
+          <span className="text-xs text-zinc-600 flex items-center gap-1">
+            <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">&larr;</kbd>
+            <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">&rarr;</kbd>
+            <span className="ml-0.5">switch tab</span>
+          </span>
+        </div>
+        <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl p-1 inline-flex gap-1">
+          <button
+            onClick={() => { if (activeProject) setActiveTab("project"); }}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+              activeTab === "project"
+                ? "bg-white/[0.06] text-zinc-100"
+                : activeProject
+                  ? "text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-300"
+                  : "text-zinc-700 cursor-not-allowed"
+            }`}
+            disabled={!activeProject}
+          >
+            Project
+          </button>
+          <button
+            onClick={() => setActiveTab("global")}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+              activeTab === "global"
+                ? "bg-white/[0.06] text-zinc-100"
+                : "text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-300"
+            }`}
+          >
+            Global
+          </button>
+        </div>
       </div>
 
       {/* Search bar */}
@@ -459,6 +556,7 @@ export default function SettingsPage() {
 
       {/* Bottom hints bar */}
       <div className="shrink-0 border-t border-zinc-800 px-6 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&larr;</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&rarr;</kbd> tab</span>
         <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd> navigate</span>
         <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd> edit</span>
         <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">/</kbd> search</span>

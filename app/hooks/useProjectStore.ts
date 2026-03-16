@@ -16,6 +16,7 @@ function toProject(row: Record<string, unknown>): Project {
     pipelineThreshold: (row.pipeline_threshold as number) ?? 80,
     maxRetries: (row.max_retries as number) ?? 2,
     repoPath: (row.repo_path as string) ?? null,
+    scrollLines: (row.scroll_lines as number) ?? 5,
   };
 }
 
@@ -28,6 +29,7 @@ function toRow(project: Partial<Omit<Project, "id">>) {
   if (project.pipelineThreshold !== undefined) row.pipeline_threshold = project.pipelineThreshold;
   if (project.maxRetries !== undefined) row.max_retries = project.maxRetries;
   if (project.repoPath !== undefined) row.repo_path = project.repoPath;
+  if (project.scrollLines !== undefined) row.scroll_lines = project.scrollLines;
   return row;
 }
 

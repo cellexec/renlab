@@ -848,7 +848,7 @@ export function MarkdownEditor({
   // -----------------------------------------------------------------------
   if (viewOnly) {
     return (
-      <div className="flex flex-1 flex-col rounded-xl bg-zinc-900/50 overflow-hidden">
+      <div className="flex flex-1 flex-col rounded-xl overflow-hidden">
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl px-8 py-8 sm:px-12 sm:py-12">
             {value ? (
@@ -876,7 +876,7 @@ export function MarkdownEditor({
   // Editor mode
   // -----------------------------------------------------------------------
   return (
-    <div className="flex flex-1 flex-col rounded-xl border border-zinc-800 bg-zinc-900/80 overflow-hidden">
+    <div className="flex flex-1 flex-col rounded-xl border border-zinc-800 overflow-hidden">
       {/* ── Toolbar ribbon ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-1 border-b border-zinc-800 px-2 py-1.5 bg-zinc-900/40">
         {/* Formatting buttons -- only visible when editor is showing */}
