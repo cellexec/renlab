@@ -953,70 +953,73 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
       {/* ============================================================= */}
       {/*  SPLIT PANE: LEFT OUTLINE + RIGHT EDITOR                      */}
       {/* ============================================================= */}
-      <div className="relative z-10 flex flex-1 min-h-0 overflow-hidden">
+      <div className="relative z-10 flex flex-1 min-h-0 overflow-hidden p-5 gap-3">
 
-        {/* ---- LEFT PANE: Outline (280px) ---- */}
-        <div
-          className={`w-[280px] shrink-0 flex flex-col border-r transition-colors duration-200 ${
-            activePane === "left" ? "border-violet-500/40" : "border-white/[0.06]"
-          } bg-zinc-950/60`}
-        >
-          {/* Outline search */}
-          <div className="px-3 pt-3 pb-2">
-            <div className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-colors ${
-              outlineSearchFocused ? "border-violet-500/40 bg-violet-500/5" : "border-white/[0.06] bg-white/[0.02]"
-            }`}>
-              <svg className="h-3.5 w-3.5 text-zinc-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <input
-                ref={outlineSearchRef}
-                type="text"
-                value={outlineSearch}
-                onChange={(e) => { setOutlineSearch(e.target.value); setOutlineIndex(0); }}
-                onFocus={() => setOutlineSearchFocused(true)}
-                onBlur={() => setOutlineSearchFocused(false)}
-                placeholder="Filter outline..."
-                className="flex-1 bg-transparent text-[12px] text-zinc-300 placeholder:text-zinc-600 outline-none"
-              />
-              {!outlineSearchFocused && !outlineSearch && (
-                <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">/</kbd>
-              )}
-            </div>
-          </div>
+        {/* ---- LEFT COLUMN: Metadata + Outline (280px) ---- */}
+        <div className="w-[280px] shrink-0 flex flex-col gap-3 min-h-0">
 
-          {/* Outline items */}
-          <div ref={outlineScrollRef} className="flex-1 overflow-y-auto px-2 pb-3">
-            {/* Metadata section — static, not navigable */}
-            {spec && !outlineSearch && (
-              <div className="mb-2">
-                <div className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 px-2 py-1.5">
-                  Metadata
-                </div>
-                <div className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-[12px] text-zinc-500">
-                  <span>Status</span>
-                  <span className={`inline-flex items-center gap-1.5 rounded-full border backdrop-blur-md px-2 py-0.5 text-[10px] font-medium ${badge.cls}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
-                    {badge.label}
-                  </span>
-                </div>
-                {[
-                  { label: "Type", value: spec.type === "ui-refactor" ? "UI Refactor" : "Feature" },
-                  ...(latestVersion ? [{ label: "Version", value: `v${latestVersion.versionNumber}` }] : []),
-                  { label: "Updated", value: new Date(spec.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) },
-                ].map((meta) => (
-                  <div
-                    key={meta.label}
-                    className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-[12px] text-zinc-500"
-                  >
-                    <span>{meta.label}</span>
-                    <span className="text-zinc-400">{meta.value}</span>
-                  </div>
-                ))}
+          {/* Metadata box — static, not navigable */}
+          {spec && !outlineSearch && (
+            <div className="shrink-0 rounded-xl border border-white/[0.06] bg-zinc-950/60 px-2 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 px-2 py-1">
+                Metadata
               </div>
-            )}
+              <div className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-[12px] text-zinc-500">
+                <span>Status</span>
+                <span className={`inline-flex items-center gap-1.5 rounded-full border backdrop-blur-md px-2 py-0.5 text-[10px] font-medium ${badge.cls}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
+                  {badge.label}
+                </span>
+              </div>
+              {[
+                { label: "Type", value: spec.type === "ui-refactor" ? "UI Refactor" : "Feature" },
+                ...(latestVersion ? [{ label: "Version", value: `v${latestVersion.versionNumber}` }] : []),
+                { label: "Updated", value: new Date(spec.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) },
+              ].map((meta) => (
+                <div
+                  key={meta.label}
+                  className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-[12px] text-zinc-500"
+                >
+                  <span>{meta.label}</span>
+                  <span className="text-zinc-400">{meta.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
-            {/* Headings section — navigable with j/k */}
+          {/* Outline box — navigable with j/k */}
+          <div
+            className={`flex-1 min-h-0 flex flex-col rounded-xl border transition-colors duration-200 ${
+              activePane === "left" ? "border-violet-500/40" : "border-white/[0.06]"
+            } bg-zinc-950/60`}
+          >
+            {/* Outline search */}
+            <div className="px-3 pt-3 pb-2">
+              <div className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-colors ${
+                outlineSearchFocused ? "border-violet-500/40 bg-violet-500/5" : "border-white/[0.06] bg-white/[0.02]"
+              }`}>
+                <svg className="h-3.5 w-3.5 text-zinc-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+                <input
+                  ref={outlineSearchRef}
+                  type="text"
+                  value={outlineSearch}
+                  onChange={(e) => { setOutlineSearch(e.target.value); setOutlineIndex(0); }}
+                  onFocus={() => setOutlineSearchFocused(true)}
+                  onBlur={() => setOutlineSearchFocused(false)}
+                  placeholder="Filter outline..."
+                  className="flex-1 bg-transparent text-[12px] text-zinc-300 placeholder:text-zinc-600 outline-none"
+                />
+                {!outlineSearchFocused && !outlineSearch && (
+                  <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">/</kbd>
+                )}
+              </div>
+            </div>
+
+            {/* Outline items */}
+            <div ref={outlineScrollRef} className="flex-1 overflow-y-auto px-2 pb-3">
+              {/* Headings */}
             {filteredOutline.length > 0 && (
               <div>
                 {!outlineSearch && (
@@ -1061,13 +1064,14 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                 No results for &ldquo;{outlineSearch}&rdquo;
               </div>
             )}
-          </div>
-        </div>
+          </div>{/* end outline scroll */}
+          </div>{/* end outline box */}
+        </div>{/* end left column */}
 
         {/* ---- RIGHT PANE: Editor ---- */}
         <div
-          className={`flex-1 flex flex-col min-h-0 min-w-0 border-l-0 transition-colors duration-200 ${
-            activePane === "right" ? "ring-1 ring-inset ring-violet-500/30" : ""
+          className={`flex-1 flex flex-col min-h-0 min-w-0 rounded-xl border transition-colors duration-200 overflow-hidden ${
+            activePane === "right" ? "border-violet-500/30" : "border-white/[0.06]"
           }`}
         >
           {/* Version preview banner */}
