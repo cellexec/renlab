@@ -1,0 +1,12 @@
+[[windows]]
+exec = "claude --dangerously-skip-permissions"
+terminal = true
+
+[[windows]]
+exec = "chromium"
+browser = true
+url_env = "NEXT_PUBLIC_APP_URL"
+
+[[windows]]
+exec = "nvim"
+terminal = true
