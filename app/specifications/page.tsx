@@ -316,7 +316,7 @@ export default function SpecificationsPage() {
   const { specifications, loaded, getLatestVersion, deleteSpecification } = useSpecificationStore(activeProjectId);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<Set<DisplayGroup>>(new Set(["pipeline", "draft", "failed"]));
+  const [statusFilter, setStatusFilter] = useState<Set<DisplayGroup>>(new Set());
   const [filterOpen, setFilterOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<DisplayGroup>>(new Set());
   const [activeGroup, setActiveGroup] = useState<DisplayGroup | null>("pipeline");

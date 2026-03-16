@@ -158,8 +158,8 @@ export default function ProjectSelectionPage() {
           moveSelection((i) => Math.max(i - 1, 0));
         } else if (e.key === "Enter") {
           e.preventDefault();
-          const project = filtered[selectedIndex];
-          if (project) selectAndGo(project.id);
+          searchRef.current?.blur();
+          setSearchFocused(false);
         }
         return;
       }
