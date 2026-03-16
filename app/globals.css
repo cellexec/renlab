@@ -6,6 +6,24 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* ── Base font scaling for larger screens ─────────────────────────────────── */
+
+html {
+  font-size: 16px;
+}
+
+@media (min-width: 1024px) {
+  html {
+    font-size: 17px;
+  }
+}
+
+@media (min-width: 1440px) {
+  html {
+    font-size: 18px;
+  }
+}
+
 /* ── Scrollbars ──────────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar {

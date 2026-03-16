@@ -369,7 +369,7 @@ export default function PipelinesPage() {
   const { specifications } = useSpecificationStore(activeProject?.id ?? null);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<DisplayGroup>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<DisplayGroup>>(new Set(["success", "cancelled"]));
   const [scoreFilter, setScoreFilter] = useState<ScoreRange>(null);
   const [typeFilter, setTypeFilter] = useState<PipelineTypeFilter>("all");
   const [mounted, setMounted] = useState(false);

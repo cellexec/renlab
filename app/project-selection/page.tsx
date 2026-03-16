@@ -191,6 +191,9 @@ export default function ProjectSelectionPage() {
         e.preventDefault();
         const project = filtered[selectedIndex];
         if (project) selectAndGo(project.id);
+      } else if (e.key === "i") {
+        e.preventDefault();
+        router.push("/projects/import-monorepo");
       }
     };
 
@@ -205,10 +208,25 @@ export default function ProjectSelectionPage() {
     <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
       {/* Header */}
       <div className="shrink-0 border-b border-zinc-800 px-6 py-4">
-        <h1 className="text-lg font-semibold text-zinc-100 tracking-tight">Switch Project</h1>
-        <p className="mt-0.5 text-[12px] text-zinc-500">
-          {projects.length} project{projects.length !== 1 ? "s" : ""}
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-zinc-100 tracking-tight">Switch Project</h1>
+            <p className="mt-0.5 text-[12px] text-zinc-500">
+              {projects.length} project{projects.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+          <button
+            tabIndex={-1}
+            onClick={() => router.push("/projects/import-monorepo")}
+            className="flex items-center gap-2 rounded-lg border border-zinc-800 px-3 py-1.5 text-[13px] text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Import
+            <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">i</kbd>
+          </button>
+        </div>
       </div>
 
       {/* Search bar */}
@@ -281,6 +299,7 @@ export default function ProjectSelectionPage() {
         <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd> navigate</span>
         <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd> select</span>
         <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">/</kbd> search</span>
+        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">i</kbd> import</span>
         <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Esc</kbd> back</span>
       </div>
     </div>

@@ -25,3 +25,6 @@ export type { IconCircleProps, IconCircleState } from "./IconCircle";
 
 export { SectionHeader } from "./SectionHeader";
 export type { SectionHeaderProps } from "./SectionHeader";
+
+export { KbdButton } from "./KbdButton";
+export type { KbdButtonProps } from "./KbdButton";

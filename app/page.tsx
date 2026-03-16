@@ -974,10 +974,13 @@ export default function DashboardPage() {
   // =========================================================================
   // Overview card data
   const recentSpecs = useMemo(
-    () => [...specs].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 5),
+    () => [...specs].filter((s) => s.status !== "done").sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 5),
     [specs]
   );
-  const recentRuns = useMemo(() => runs.slice(0, 5), [runs]);
+  const recentRuns = useMemo(
+    () => runs.filter((r) => r.status !== "success").slice(0, 5),
+    [runs]
+  );
 
   // Reset item index when switching cards
   useEffect(() => {
@@ -1011,11 +1014,37 @@ export default function DashboardPage() {
           const run = recentRuns[overviewItemIndex];
           if (run) window.location.href = `/pipelines/${run.id}`;
         }
+      } else if (e.key === "a") {
+        e.preventDefault();
+        window.location.href = overviewCard === 0 ? "/specifications" : "/pipelines";
+      } else if (e.key === "n" && overviewCard === 0) {
+        e.preventDefault();
+        window.location.href = "/specifications/new";
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [tab, loading, overviewCard, overviewItemIndex, recentSpecs, recentRuns]);
+
+  // Arrow left/right to switch tabs
+  const TAB_ORDER: TabId[] = ["overview", "data", "activity"];
+  useEffect(() => {
+    if (loading || !activeProject) return;
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setTab((t) => { const i = TAB_ORDER.indexOf(t); return TAB_ORDER[Math.max(0, i - 1)]; });
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setTab((t) => { const i = TAB_ORDER.indexOf(t); return TAB_ORDER[Math.min(TAB_ORDER.length - 1, i + 1)]; });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, activeProject]);
 
   const fetchData = useCallback(async (projectId: string) => {
     const sb = getSupabase();
@@ -1261,30 +1290,22 @@ export default function DashboardPage() {
         <div className="max-w-full px-6 py-6">
           {/* Header */}
           <div className="mb-6 animate-fade-in-up" style={{ animationDelay: "0ms" }}>
-            <div className="flex items-center gap-1.5 text-[12px] text-zinc-500 mb-2">
-              <span className="text-zinc-300">Dashboard</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">Dashboard</h1>
-                <p className="mt-1 text-[13px] text-zinc-500">
-                  {activeProject
-                    ? `Overview for ${activeProject.title}`
-                    : "Select a project to get started"}
-                </p>
+            <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">Dashboard</h1>
+            {!loading && activeProject && (
+              <div className="flex items-center gap-2 mt-1 text-[12px] text-zinc-500">
+                <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Auto-refreshing
               </div>
-              {!loading && activeProject && (
-                <div className="flex items-center gap-2 text-[12px] text-zinc-500">
-                  <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Auto-refreshing
-                </div>
-              )}
-            </div>
+            )}
           </div>
 
           {/* Tab bar */}
           {activeProject && (
             <div className="mb-6 animate-fade-in-up" style={{ animationDelay: "50ms" }}>
+              <div className="flex items-center gap-3 mb-2 text-[11px] text-zinc-600">
+                <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Tab</kbd> cycle cards</span>
+                <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&larr;</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&rarr;</kbd> switch tab</span>
+              </div>
               <TabBar active={tab} onChange={setTab} />
             </div>
           )}
@@ -1319,53 +1340,7 @@ export default function DashboardPage() {
           {/* ================================================================= */}
           {!loading && activeProject && tab === "overview" && (
             <>
-              {/* 1. System Status Banner */}
-              <div
-                className={`w-full rounded-2xl px-6 py-5 mb-6 border animate-fade-in-up ${
-                  hasActiveIssues
-                    ? "backdrop-blur-xl bg-red-500/[0.04] border-red-500/[0.12]"
-                    : "backdrop-blur-xl bg-emerald-500/[0.04] border-emerald-500/[0.1]"
-                }`}
-                style={{ animationDelay: "80ms" }}
-              >
-                <div className="flex items-center gap-4">
-                  {hasActiveIssues ? (
-                    <>
-                      <div className="p-2.5 rounded-xl bg-red-500/[0.1]">
-                        <svg className="w-7 h-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-[20px] font-bold text-red-400 tracking-tight">
-                          {failedCount} Issue{failedCount !== 1 ? "s" : ""} Detected
-                        </p>
-                        <p className="text-[13px] text-red-400/60 mt-0.5">
-                          {failedCount} pipeline run{failedCount !== 1 ? "s" : ""} failed or rejected
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="p-2.5 rounded-xl bg-emerald-500/[0.1]">
-                        <svg className="w-7 h-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-[20px] font-bold text-emerald-400 tracking-tight">All Systems Operational</p>
-                        <p className="text-[13px] text-emerald-400/60 mt-0.5">
-                          {activeRuns.length > 0
-                            ? `${activeRuns.length} pipeline${activeRuns.length !== 1 ? "s" : ""} actively running`
-                            : "No active issues across all pipelines"}
-                        </p>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* 2. Recent Specs & Pipelines */}
+              {/* Recent Specs & Pipelines */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 animate-fade-in-up" style={{ animationDelay: "100ms" }}>
                 {/* Recent Specifications */}
                 <div className={`backdrop-blur-xl bg-white/[0.03] rounded-xl overflow-hidden transition-colors ${
@@ -1376,7 +1351,18 @@ export default function DashboardPage() {
                       <IconSpec className="w-4 h-4 text-violet-400" />
                       <span className="text-[13px] font-medium text-zinc-200">Recent Specifications</span>
                     </div>
-                    <Link href="/specifications" className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">View all</Link>
+                    <div className="flex items-center gap-2">
+                      {overviewCard === 0 && (
+                        <>
+                          <Link href="/specifications/new" className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">
+                            New <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">n</kbd>
+                          </Link>
+                          <Link href="/specifications" className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">
+                            All <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">a</kbd>
+                          </Link>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div>
                     {recentSpecs.length === 0 ? (
@@ -1397,8 +1383,11 @@ export default function DashboardPage() {
                             isItemSelected ? "bg-violet-500/[0.06] border-l-2 border-l-violet-500/60" : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
                           }`}>
                             <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${isItemSelected ? "bg-violet-400" : "bg-transparent"}`} />
-                            <div className="flex-1 min-w-0">
-                              <span className="text-[13px] text-zinc-200 truncate block">{s.title}</span>
+                            <div className="flex-1 flex items-center gap-2 min-w-0">
+                              <span className="text-[13px] text-zinc-200 truncate">{s.title}</span>
+                              {isItemSelected && (
+                                <kbd className="shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">Enter</kbd>
+                              )}
                             </div>
                             <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${color}`}>
                               {s.status}
@@ -1422,7 +1411,11 @@ export default function DashboardPage() {
                       <IconPipeline className="w-4 h-4 text-indigo-400" />
                       <span className="text-[13px] font-medium text-zinc-200">Recent Pipelines</span>
                     </div>
-                    <Link href="/pipelines" className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">View all</Link>
+                    {overviewCard === 1 && (
+                      <Link href="/pipelines" className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">
+                        All <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">a</kbd>
+                      </Link>
+                    )}
                   </div>
                   <div>
                     {recentRuns.length === 0 ? (
@@ -1446,8 +1439,11 @@ export default function DashboardPage() {
                             isItemSelected ? "bg-indigo-500/[0.06] border-l-2 border-l-indigo-500/60" : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
                           }`}>
                             <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${isItemSelected ? "bg-indigo-400" : "bg-transparent"}`} />
-                            <div className="flex-1 min-w-0">
-                              <span className="text-[13px] text-zinc-200 truncate block">{r.specTitle}</span>
+                            <div className="flex-1 flex items-center gap-2 min-w-0">
+                              <span className="text-[13px] text-zinc-200 truncate">{r.specTitle}</span>
+                              {isItemSelected && (
+                                <kbd className="shrink-0 rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">Enter</kbd>
+                              )}
                             </div>
                             {r.reviewScore !== null && (
                               <span className="shrink-0 text-[11px] text-zinc-500 tabular-nums font-mono">{r.reviewScore}</span>
@@ -1467,12 +1463,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Bottom hints */}
-              <div className="flex items-center gap-4 text-[11px] text-zinc-600 animate-fade-in-up" style={{ animationDelay: "140ms" }}>
-                <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Tab</kbd> switch card</span>
-                <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd> navigate</span>
-                <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd> open</span>
-              </div>
             </>
           )}
 

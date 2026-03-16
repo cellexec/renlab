@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { KbdButton } from "../components/ui";
 import { useSpecificationStore } from "../hooks/useSpecificationStore";
 import { useProjectContext } from "../components/ProjectContext";
 import type { Specification, SpecificationStatus } from "../specifications";
@@ -315,7 +316,7 @@ export default function SpecificationsPage() {
   const { specifications, loaded, getLatestVersion, deleteSpecification } = useSpecificationStore(activeProjectId);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<Set<DisplayGroup>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<Set<DisplayGroup>>(new Set(["pipeline", "draft", "failed"]));
   const [filterOpen, setFilterOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<DisplayGroup>>(new Set());
   const [activeGroup, setActiveGroup] = useState<DisplayGroup | null>("pipeline");
@@ -471,15 +472,12 @@ export default function SpecificationsPage() {
                   Project specifications and requirements
                 </p>
               </div>
-              <Link
-                href="/specifications/new"
-                className="inline-flex items-center gap-2 px-3.5 py-2 text-[13px] font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors duration-200"
-              >
+              <KbdButton shortcut="n" href="/specifications/new">
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
                 New Spec
-              </Link>
+              </KbdButton>
             </div>
           </div>
 
