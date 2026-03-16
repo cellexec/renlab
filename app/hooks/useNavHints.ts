@@ -91,6 +91,8 @@ export function useNavHints(items: NavHintItem[]) {
       if (!active) {
         if (isInput || isEditable) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
+        // Don't activate when a dialog/overlay is open
+        if (document.querySelector("[data-overlay-open]")) return;
         if (e.key === " ") {
           e.preventDefault();
           setActive(true);

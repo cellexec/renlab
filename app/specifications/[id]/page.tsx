@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 import { AgentChat } from "../../components/AgentChat";
-import { VersionHistory } from "../../components/VersionHistory";
 import { PipelineTriggerButton } from "../../components/PipelineTriggerButton";
 import { DesignPipelineTriggerButton } from "../../components/DesignPipelineTriggerButton";
 import { useSpecificationStore } from "../../hooks/useSpecificationStore";
@@ -79,7 +78,7 @@ function extractHeadings(markdown: string): HeadingEntry[] {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Outline item type (metadata fields + headings)                     */
+/*  Outline item type                                                  */
 /* ------------------------------------------------------------------ */
 
 interface OutlineItem {
@@ -88,6 +87,142 @@ interface OutlineItem {
   value: string;
   headingId?: string;
   headingLevel?: number;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Inline diff computation + viewer                                   */
+/* ------------------------------------------------------------------ */
+
+type DiffLine = { type: "unchanged" | "added" | "removed"; text: string };
+
+function computeDiff(oldText: string, newText: string): DiffLine[] {
+  const oldLines = oldText.split("\n");
+  const newLines = newText.split("\n");
+  const m = oldLines.length, n = newLines.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = oldLines[i - 1] === newLines[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+  const result: DiffLine[] = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) { result.push({ type: "unchanged", text: oldLines[i - 1] }); i--; j--; }
+    else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) { result.push({ type: "added", text: newLines[j - 1] }); j--; }
+    else { result.push({ type: "removed", text: oldLines[i - 1] }); i--; }
+  }
+  result.reverse();
+  return result;
+}
+
+function DiffView({ oldVersion, newVersion }: { oldVersion: { content: string; versionNumber: number }; newVersion: { content: string; versionNumber: number } }) {
+  const lines = useMemo(() => computeDiff(oldVersion.content, newVersion.content), [oldVersion.content, newVersion.content]);
+  const stats = useMemo(() => {
+    let added = 0, removed = 0;
+    for (const l of lines) { if (l.type === "added") added++; else if (l.type === "removed") removed++; }
+    return { added, removed };
+  }, [lines]);
+
+  // Compute change hunk start indices (first line of each contiguous changed block)
+  const hunkStarts = useMemo(() => {
+    const starts: number[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].type !== "unchanged") {
+        if (i === 0 || lines[i - 1].type === "unchanged") starts.push(i);
+      }
+    }
+    return starts;
+  }, [lines]);
+
+  const [activeHunk, setActiveHunk] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to active hunk
+  useEffect(() => {
+    if (hunkStarts.length === 0 || !scrollRef.current) return;
+    const lineIndex = hunkStarts[activeHunk];
+    const el = scrollRef.current.querySelector(`[data-diff-line="${lineIndex}"]`);
+    if (el) (el as HTMLElement).scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [activeHunk, hunkStarts]);
+
+  // j/k to jump between hunks
+  useEffect(() => {
+    if (hunkStarts.length === 0) return;
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveHunk((i) => Math.min(i + 1, hunkStarts.length - 1));
+      } else if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveHunk((i) => Math.max(i - 1, 0));
+      }
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [hunkStarts]);
+
+  // Determine which lines belong to the active hunk
+  const activeHunkLines = useMemo(() => {
+    if (hunkStarts.length === 0) return new Set<number>();
+    const start = hunkStarts[activeHunk];
+    const set = new Set<number>();
+    for (let i = start; i < lines.length && lines[i].type !== "unchanged"; i++) set.add(i);
+    return set;
+  }, [activeHunk, hunkStarts, lines]);
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex items-center gap-3 px-5 py-2 text-[11px] text-zinc-500 border-b border-white/[0.04]">
+        <span className="text-emerald-400">+{stats.added} added</span>
+        <span className="text-red-400">-{stats.removed} removed</span>
+        {hunkStarts.length > 0 && (
+          <span className="ml-auto text-zinc-600">
+            change {activeHunk + 1}/{hunkStarts.length}
+          </span>
+        )}
+      </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        <pre className="text-xs font-mono leading-relaxed">
+          {lines.map((line, i) => {
+            const isInActiveHunk = activeHunkLines.has(i);
+            return (
+              <div
+                key={i}
+                data-diff-line={i}
+                className={`px-5 py-px transition-colors duration-150 ${
+                  line.type === "added"
+                    ? isInActiveHunk ? "bg-emerald-500/20 ring-1 ring-inset ring-emerald-500/10" : "bg-emerald-500/10"
+                    : line.type === "removed"
+                      ? isInActiveHunk ? "bg-red-500/20 ring-1 ring-inset ring-red-500/10" : "bg-red-500/10"
+                      : ""
+                }`}
+              >
+                <span className={`select-none mr-2 ${line.type === "added" ? "text-emerald-400" : line.type === "removed" ? "text-red-400" : "text-zinc-700"}`}>
+                  {line.type === "added" ? "+" : line.type === "removed" ? "-" : " "}
+                </span>
+                <span className={line.type === "added" ? "text-emerald-300" : line.type === "removed" ? "text-red-300" : "text-zinc-500"}>
+                  {line.text || "\u00A0"}
+                </span>
+              </div>
+            );
+          })}
+        </pre>
+      </div>
+      <div className="shrink-0 border-t border-white/[0.06] px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+        <span>
+          <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd>
+          {" "}
+          <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd>
+          {" next/prev change"}
+        </span>
+        <span>
+          <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Esc</kbd>
+          {" back"}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -132,11 +267,18 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
   const [editorViewOnly, setEditorViewOnly] = useState(true);
   const [pipelineConfirm, setPipelineConfirm] = useState(false);
   const [discardConfirm, setDiscardConfirm] = useState(false);
+  const [restoreConfirm, setRestoreConfirm] = useState(false);
+
+  // --- History overlay state ---
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [historySelected, setHistorySelected] = useState<Set<string>>(new Set());
+  const [historyShowDiff, setHistoryShowDiff] = useState(false);
 
   // --- Refs ---
   const outlineSearchRef = useRef<HTMLInputElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const outlineScrollRef = useRef<HTMLDivElement>(null);
+  const historyScrollRef = useRef<HTMLDivElement>(null);
 
   const spec = specifications.find((s) => s.id === id);
   const versions = getVersions(id);
@@ -230,6 +372,23 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
     setActivePane("left");
   }, []);
 
+  // --- Restore version and auto-save ---
+  const confirmRestore = useCallback(async () => {
+    if (!viewingVersion || !editable || !spec) return;
+    setContent(viewingVersion.content);
+    initialContentRef.current = viewingVersion.content;
+    setHasChanges(false);
+    setRestoreConfirm(false);
+    setViewingVersion(null);
+    // Auto-save as new version
+    setSaving(true);
+    try {
+      await saveVersion(id, viewingVersion.content, `Restored from v${viewingVersion.versionNumber}`);
+    } finally {
+      setSaving(false);
+    }
+  }, [viewingVersion, editable, spec, id, saveVersion]);
+
   // --- Trigger pipeline ---
   const handleTriggerPipeline = useCallback(async () => {
     if (!activeProject || !latestVersion || !editable) return;
@@ -273,6 +432,21 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
       const tagName = target.tagName.toLowerCase();
       const isInInput = tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
 
+      // ---- Layer 0: Restore confirm dialog ----
+      if (restoreConfirm) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          confirmRestore();
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setRestoreConfirm(false);
+          return;
+        }
+        return;
+      }
+
       // ---- Layer 1: Save/Discard dialog ----
       if (discardConfirm) {
         if (e.key === "Enter") {
@@ -305,6 +479,77 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
 
       // ---- Layer 3: Overlay panel (chat/history) ----
       if (overlayPanel) {
+        if (overlayPanel === "history" && versions.length > 0) {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            if (historyShowDiff) {
+              setHistoryShowDiff(false);
+              setHistorySelected(new Set());
+            } else if (historySelected.size > 0) {
+              setHistorySelected(new Set());
+            } else {
+              setOverlayPanel(null);
+            }
+            return;
+          }
+          // Skip j/k/Enter/Space if user is typing in an input
+          const tag = (e.target as HTMLElement)?.tagName;
+          if (tag !== "INPUT" && tag !== "TEXTAREA") {
+            if (e.key === "j" || e.key === "ArrowDown") {
+              e.preventDefault();
+              setHistoryIndex((i) => Math.min(i + 1, versions.length - 1));
+              requestAnimationFrame(() => {
+                const el = historyScrollRef.current?.querySelector(`[data-history-index="${Math.min(historyIndex + 1, versions.length - 1)}"]`);
+                if (el) (el as HTMLElement).scrollIntoView({ behavior: "smooth", block: "nearest" });
+              });
+              return;
+            }
+            if (e.key === "k" || e.key === "ArrowUp") {
+              e.preventDefault();
+              setHistoryIndex((i) => Math.max(i - 1, 0));
+              requestAnimationFrame(() => {
+                const el = historyScrollRef.current?.querySelector(`[data-history-index="${Math.max(historyIndex - 1, 0)}"]`);
+                if (el) (el as HTMLElement).scrollIntoView({ behavior: "smooth", block: "nearest" });
+              });
+              return;
+            }
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const v = versions[historyIndex];
+              if (v) {
+                setViewingVersion({ content: v.content, versionNumber: v.versionNumber });
+                setOverlayPanel(null);
+              }
+              return;
+            }
+            if (e.key === " ") {
+              e.preventDefault();
+              e.stopImmediatePropagation();
+              const v = versions[historyIndex];
+              if (v) {
+                setHistorySelected((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(v.id)) {
+                    next.delete(v.id);
+                  } else {
+                    if (next.size >= 2) {
+                      const first = next.values().next().value;
+                      if (first !== undefined) next.delete(first);
+                    }
+                    next.add(v.id);
+                  }
+                  // Auto-show diff when 2 selected
+                  if (next.size === 2) {
+                    requestAnimationFrame(() => setHistoryShowDiff(true));
+                  }
+                  return next;
+                });
+              }
+              return;
+            }
+          }
+          return;
+        }
         if (e.key === "Escape") {
           e.preventDefault();
           setOverlayPanel(null);
@@ -426,6 +671,20 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
         return;
       }
 
+      // r — restore viewed version (show confirmation)
+      if (e.key === "r" && viewingVersion && editable) {
+        e.preventDefault();
+        setRestoreConfirm(true);
+        return;
+      }
+
+      // l — back to latest version
+      if (e.key === "l" && viewingVersion) {
+        e.preventDefault();
+        setViewingVersion(null);
+        return;
+      }
+
       // s — save
       if (e.key === "s") {
         e.preventDefault();
@@ -436,6 +695,9 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
       // h — history overlay
       if (e.key === "h") {
         e.preventDefault();
+        setHistoryIndex(0);
+        setHistorySelected(new Set());
+        setHistoryShowDiff(false);
         setOverlayPanel("history");
         return;
       }
@@ -496,10 +758,11 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [
-    discardConfirm, pipelineConfirm, overlayPanel, outlineSearchFocused,
+    restoreConfirm, confirmRestore, discardConfirm, pipelineConfirm, overlayPanel, outlineSearchFocused,
     editingTitle, activePane, editorViewOnly, outlineIndex, filteredOutline,
     editable, hasChanges, outlineSearch, handleSave, saveAndExitEdit,
-    discardAndExitEdit, scrollOutlineItemIntoView, scrollEditorToOutlineItem, router, latestVersion,
+    versions, historyIndex, historySelected, historyShowDiff,
+    discardAndExitEdit, scrollOutlineItemIntoView, scrollEditorToOutlineItem, router, latestVersion, viewingVersion,
   ]);
 
   /* ================================================================== */
@@ -589,12 +852,6 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
             Unsaved
           </span>
         )}
-
-        {/* Status badge */}
-        <span className={`inline-flex items-center gap-1.5 rounded-full border backdrop-blur-md px-2.5 py-0.5 text-[11px] font-medium shrink-0 ${badge.cls}`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
-          {badge.label}
-        </span>
 
         {/* Pipeline link */}
         {activeRunId && (
@@ -736,8 +993,14 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                 <div className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 px-2 py-1.5">
                   Metadata
                 </div>
+                <div className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-[12px] text-zinc-500">
+                  <span>Status</span>
+                  <span className={`inline-flex items-center gap-1.5 rounded-full border backdrop-blur-md px-2 py-0.5 text-[10px] font-medium ${badge.cls}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
+                    {badge.label}
+                  </span>
+                </div>
                 {[
-                  { label: "Status", value: STATUS_BADGE[spec.status].label },
                   { label: "Type", value: spec.type === "ui-refactor" ? "UI Refactor" : "Feature" },
                   ...(latestVersion ? [{ label: "Version", value: `v${latestVersion.versionNumber}` }] : []),
                   { label: "Updated", value: new Date(spec.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) },
@@ -815,11 +1078,21 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               <span className="text-xs text-blue-300 font-medium">Viewing v{viewingVersion.versionNumber}</span>
+              {editable && (
+                <button
+                  onClick={() => setRestoreConfirm(true)}
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-xs text-amber-300 transition-all hover:bg-amber-400/20"
+                >
+                  <kbd className="rounded bg-amber-500/25 px-1 py-0.5 text-[9px] font-medium text-amber-400">r</kbd>
+                  Restore
+                </button>
+              )}
               <button
                 onClick={() => setViewingVersion(null)}
-                className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-xs text-blue-300 transition-all hover:bg-blue-400/20"
+                className={`${editable ? "" : "ml-auto "}inline-flex items-center gap-1.5 rounded-lg border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-xs text-blue-300 transition-all hover:bg-blue-400/20`}
               >
-                Back to current
+                <kbd className="rounded bg-blue-500/25 px-1 py-0.5 text-[9px] font-medium text-blue-400">l</kbd>
+                Latest
               </button>
             </div>
           )}
@@ -921,54 +1194,182 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
       {/* ============================================================= */}
 
       {/* History overlay */}
-      {overlayPanel === "history" && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-            style={{ animation: "fadeIn 0.15s ease-out" }}
-            onClick={() => setOverlayPanel(null)}
-          />
-          <div
-            className="fixed inset-4 md:inset-8 lg:inset-12 z-50 flex flex-col rounded-2xl border border-white/[0.08] bg-zinc-950/95 backdrop-blur-2xl shadow-2xl overflow-hidden"
-            style={{ animation: "dashOverlayIn 0.2s ease-out" }}
-          >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06]">
-              <div className="flex items-center gap-2">
-                <svg className="h-4 w-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="text-sm font-medium text-zinc-200">Version History</span>
-                {versions.length > 0 && (
-                  <span className="text-[11px] text-zinc-500 ml-1">{versions.length} version{versions.length !== 1 ? "s" : ""}</span>
-                )}
+      {overlayPanel === "history" && (() => {
+        const diffVersions = historySelected.size === 2
+          ? (() => {
+              const ids = Array.from(historySelected);
+              const a = versions.find((v) => v.id === ids[0]);
+              const b = versions.find((v) => v.id === ids[1]);
+              if (!a || !b) return null;
+              return a.versionNumber < b.versionNumber ? [a, b] : [b, a];
+            })()
+          : null;
+
+        return (
+          <>
+            <div
+              data-overlay-open
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              style={{ animation: "fadeIn 0.15s ease-out" }}
+              onClick={() => setOverlayPanel(null)}
+            />
+            <div
+              className="fixed inset-4 md:inset-8 lg:inset-12 z-50 flex flex-col rounded-2xl border border-white/[0.08] bg-zinc-950/95 backdrop-blur-2xl shadow-2xl overflow-hidden"
+              style={{ animation: "dashOverlayIn 0.2s ease-out" }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06]">
+                <div className="flex items-center gap-2">
+                  {historyShowDiff && diffVersions ? (
+                    <button
+                      onClick={() => setHistoryShowDiff(false)}
+                      className="rounded-md p-1 text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-zinc-200"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <svg className="h-4 w-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
+                  <span className="text-sm font-medium text-zinc-200">
+                    {historyShowDiff && diffVersions
+                      ? <>v{diffVersions[0].versionNumber} <span className="text-zinc-500 mx-1">&rarr;</span> v{diffVersions[1].versionNumber}</>
+                      : "Version History"
+                    }
+                  </span>
+                  {!historyShowDiff && versions.length > 0 && (
+                    <span className="text-[11px] text-zinc-500 ml-1">{versions.length} version{versions.length !== 1 ? "s" : ""}</span>
+                  )}
+                  {!historyShowDiff && historySelected.size > 0 && (
+                    <span className="text-[11px] text-indigo-400 ml-2">
+                      {historySelected.size}/2 selected
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => historyShowDiff ? setHistoryShowDiff(false) : setOverlayPanel(null)}
+                  className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors"
+                >
+                  <span className="text-[11px]">{historyShowDiff ? "Back" : "Close"}</span>
+                  <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500">Esc</kbd>
+                </button>
               </div>
-              <button
-                onClick={() => setOverlayPanel(null)}
-                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors"
-              >
-                <span className="text-[11px]">Close</span>
-                <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500">Esc</kbd>
-              </button>
+
+              {/* Diff view */}
+              {historyShowDiff && diffVersions ? (
+                <DiffView oldVersion={diffVersions[0]} newVersion={diffVersions[1]} />
+              ) : (
+                /* Version list */
+                <div ref={historyScrollRef} className="flex-1 overflow-y-auto">
+                  {versions.length === 0 ? (
+                    <div className="flex h-full items-center justify-center px-4">
+                      <p className="text-xs text-zinc-600 text-center">No versions saved yet</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-zinc-800/40">
+                      {versions.map((v, i) => {
+                        const isActive = historyIndex === i;
+                        const isChecked = historySelected.has(v.id);
+                        const isViewing = viewingVersion?.versionNumber === v.versionNumber;
+                        return (
+                          <div
+                            key={v.id}
+                            data-history-index={i}
+                            onClick={() => setHistoryIndex(i)}
+                            className={`px-5 py-3 cursor-pointer transition-all duration-150 ${
+                              isActive
+                                ? "bg-violet-500/[0.08] border-l-2 border-l-violet-500"
+                                : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              {/* Selection checkbox */}
+                              <div
+                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                                  isChecked
+                                    ? "border-indigo-500 bg-indigo-500/30"
+                                    : "border-zinc-700 bg-transparent"
+                                }`}
+                              >
+                                {isChecked && (
+                                  <svg className="h-3 w-3 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+
+                              {/* Dot */}
+                              <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                                isViewing ? "bg-blue-400" : isActive ? "bg-violet-400" : "bg-transparent"
+                              }`} />
+
+                              {/* Content */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-sm font-medium ${isActive ? "text-zinc-100" : "text-zinc-300"}`}>
+                                    v{v.versionNumber}
+                                  </span>
+                                  {isViewing && (
+                                    <span className="text-[10px] font-medium text-blue-300 bg-blue-400/15 rounded-full px-1.5 py-0.5">
+                                      viewing
+                                    </span>
+                                  )}
+                                  {/* Inline kbd hints after version name */}
+                                  {isActive && (
+                                    <span className="flex items-center gap-1.5">
+                                      <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd>
+                                      <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Space</kbd>
+                                    </span>
+                                  )}
+                                  {v.changeNote && (
+                                    <span className="text-[11px] text-zinc-500 truncate">{v.changeNote}</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Date */}
+                              <span className="text-[10px] text-zinc-600 shrink-0">
+                                {new Date(v.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Bottom hints */}
+              {!historyShowDiff && (
+                <div className="shrink-0 border-t border-white/[0.06] px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+                  <span>
+                    <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd>
+                    {" "}
+                    <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd>
+                    {" navigate"}
+                  </span>
+                  <span>
+                    <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd>
+                    {" preview"}
+                  </span>
+                  <span>
+                    <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Space</kbd>
+                    {" select for diff"}
+                  </span>
+                  <span>
+                    <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Esc</kbd>
+                    {" close"}
+                  </span>
+                </div>
+              )}
             </div>
-            <div className="flex-1 min-h-0 flex flex-col overflow-auto">
-              <VersionHistory
-                versions={versions}
-                onRestore={(restoredContent) => {
-                  handleRestore(restoredContent);
-                  setViewingVersion(null);
-                  setOverlayPanel(null);
-                }}
-                onView={(versionContent, versionNumber) => {
-                  setViewingVersion({ content: versionContent, versionNumber });
-                }}
-                canRestore={editable}
-                viewingVersionNumber={viewingVersion?.versionNumber ?? null}
-                className="flex-1"
-              />
-            </div>
-          </div>
-        </>
-      )}
+          </>
+        );
+      })()}
 
       {/* Chat overlay */}
       {overlayPanel === "chat" && (
@@ -1018,6 +1419,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
       {pipelineConfirm && (
         <>
           <div
+            data-overlay-open
             className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
             style={{ animation: "fadeIn 0.15s ease-out" }}
             onClick={() => setPipelineConfirm(false)}
@@ -1072,9 +1474,46 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
       {/* ============================================================= */}
       {/*  SAVE/DISCARD DIALOG                                           */}
       {/* ============================================================= */}
+      {restoreConfirm && viewingVersion && (
+        <>
+          <div
+            data-overlay-open
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+            style={{ animation: "fadeIn 0.15s ease-out" }}
+          />
+          <div
+            className="fixed z-50 top-1/2 left-1/2 w-[380px]"
+            style={{ animation: "modalIn 0.2s ease-out forwards" }}
+          >
+            <div className="rounded-2xl border border-white/[0.08] bg-zinc-900/95 backdrop-blur-2xl p-6 shadow-2xl">
+              <h2 className="text-sm font-medium text-zinc-300 mb-2">Restore Version</h2>
+              <p className="text-[13px] text-zinc-500 mb-5">
+                This will create a new version with the content from v{viewingVersion.versionNumber} and save it immediately.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={confirmRestore}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-400/20 text-sm font-medium hover:bg-amber-500/30 transition-colors"
+                >
+                  <kbd className="rounded bg-amber-500/25 px-1.5 py-0.5 text-[9px] font-medium text-amber-400">Enter</kbd>
+                  Restore &amp; Save
+                </button>
+                <button
+                  onClick={() => setRestoreConfirm(false)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
+                >
+                  <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500">Esc</kbd>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
       {discardConfirm && (
         <>
           <div
+            data-overlay-open
             className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
             style={{ animation: "fadeIn 0.15s ease-out" }}
           />
