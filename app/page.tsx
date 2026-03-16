@@ -1285,7 +1285,7 @@ export default function DashboardPage() {
   // =========================================================================
 
   return (
-    <div className={`h-full bg-zinc-950 text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
+    <div className={`h-full text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
       <div className="h-full overflow-auto">
         <div className="max-w-full px-6 py-6">
           {/* Header */}

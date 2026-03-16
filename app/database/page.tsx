@@ -41,7 +41,7 @@ export default function DatabasePage() {
   const appName = activeProject?.path.split("/").pop() ?? "app";
 
   return (
-    <div className={`flex h-full flex-col bg-zinc-950 text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
+    <div className={`flex h-full flex-col text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
       {/* Header */}
       <div className="px-6 py-6 animate-fade-in-up stagger-1">
         <div className="flex items-center justify-between">

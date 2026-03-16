@@ -409,7 +409,7 @@ export default function DesignPipelineDetailPage({ params }: { params: Promise<{
         .fade-in-up { opacity: 0; animation: fadeInUp 500ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
       `}</style>
 
-      <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
+      <div className="flex h-full flex-col text-zinc-100">
         {/* ---- Sticky Header ---- */}
         <header className="sticky top-0 z-20 flex flex-wrap gap-3 items-center justify-between border-b border-white/[0.04] bg-zinc-950/80 px-4 md:px-8 py-4 backdrop-blur-xl shrink-0">
           <div className="flex items-center gap-4">

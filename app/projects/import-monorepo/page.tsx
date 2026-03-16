@@ -431,7 +431,7 @@ export default function ImportMonorepoPage() {
   // ── Browse step ──────────────────────────────────────────────────────────
   if (step === "browse") {
     return (
-      <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
+      <div className="flex h-full flex-col text-zinc-100">
         {/* Header */}
         <div className="shrink-0 border-b border-zinc-800 px-6 py-4">
           <div className="flex items-center justify-between">
@@ -564,7 +564,7 @@ export default function ImportMonorepoPage() {
   // ── Apps step ────────────────────────────────────────────────────────────
   if (step === "apps") {
     return (
-      <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
+      <div className="flex h-full flex-col text-zinc-100">
         {/* Header */}
         <div className="shrink-0 border-b border-zinc-800 px-6 py-4">
           <div className="flex items-center justify-between">
@@ -737,7 +737,7 @@ export default function ImportMonorepoPage() {
 
   // ── Importing step ───────────────────────────────────────────────────────
   return (
-    <div className="flex h-full items-center justify-center bg-zinc-950">
+    <div className="flex h-full items-center justify-center">
       <div className="text-center">
         <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
         <p className="text-[13px] text-zinc-400">{status}</p>

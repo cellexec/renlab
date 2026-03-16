@@ -58,7 +58,7 @@ export default function UsagePage() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center bg-zinc-950">
+      <div className="flex h-full items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-violet-500" />
       </div>
     );
@@ -66,7 +66,7 @@ export default function UsagePage() {
 
   if (!stats) {
     return (
-      <div className={`h-full bg-zinc-950 text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
+      <div className={`h-full text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
         <div className="h-full overflow-auto">
           <div className="max-w-full px-6 py-6">
             <div className="mb-6 animate-fade-in-up stagger-1">
@@ -115,7 +115,7 @@ export default function UsagePage() {
   );
 
   return (
-    <div className={`h-full bg-zinc-950 text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
+    <div className={`h-full text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
       <div className="h-full overflow-auto">
         <div className="max-w-full px-6 py-6">
           {/* Breadcrumb + header */}

@@ -287,7 +287,7 @@ export default function SpecificationsPage() {
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
+    <div className="flex h-full flex-col text-zinc-100">
       {/* Scrollable area: header + tabs + search/list container */}
       <div className="flex-1 overflow-y-auto min-h-0">
 

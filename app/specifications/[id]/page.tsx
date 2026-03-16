@@ -840,9 +840,6 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
   return (
     <div
       className="relative flex h-full flex-col overflow-hidden text-zinc-100"
-      style={{
-        background: "linear-gradient(145deg, rgba(139,92,246,0.04) 0%, rgb(9,9,11) 40%, rgba(59,130,246,0.03) 100%)",
-      }}
     >
       <style>{keyframes}</style>
 

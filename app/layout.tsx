@@ -29,10 +29,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-950`}
       >
         <ProjectProvider>
-          <div className="flex h-screen bg-zinc-950">
+          <div
+            className="flex h-screen"
+            style={{ background: "linear-gradient(145deg, rgba(139,92,246,0.08) 0%, rgb(9,9,11) 45%, rgba(59,130,246,0.06) 100%)" }}
+          >
             <main className="flex-1 overflow-auto order-1">{children}</main>
             <AppSidebar />
             <ProjectSelector />

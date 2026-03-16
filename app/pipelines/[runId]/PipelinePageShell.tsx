@@ -600,7 +600,7 @@ export default function PipelinePageShell({
         }
       `}</style>
 
-      <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
+      <div className="flex h-full flex-col text-zinc-100">
         {/* Header */}
         <header className="sticky top-0 z-20 flex flex-wrap gap-3 items-center justify-between border-b border-white/[0.04] bg-zinc-950/80 px-4 md:px-8 py-4 backdrop-blur-xl shrink-0">
           <div className="flex items-center gap-4">
