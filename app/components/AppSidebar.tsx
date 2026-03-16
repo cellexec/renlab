@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useProjectContext } from "./ProjectContext";
 import { ProjectDropdown } from "./ProjectDropdown";
 import { useSidebarState } from "../hooks/useSidebarState";
+import { useNavHints } from "../hooks/useNavHints";
+import type { NavHintItem } from "../hooks/useNavHints";
 
 const projectNavItems = [
   {
@@ -199,19 +201,74 @@ function BrandHeader({ collapsed }: { collapsed: boolean }) {
 
 // ── Sidebar ─────────────────────────────────────────────────────────────────
 
+// ── Hint-aware label ─────────────────────────────────────────────────────────
+
+function HintLabel({
+  label,
+  hint,
+  typed,
+  hintActive,
+  dimmed,
+}: {
+  label: string;
+  hint: string;
+  typed: string;
+  hintActive: boolean;
+  dimmed: boolean;
+}) {
+  if (!hintActive) return <span className="truncate">{label}</span>;
+
+  const hintLen = hint.length;
+  const hintPart = label.slice(0, hintLen);
+  const rest = label.slice(hintLen);
+  const typedLen = typed.length;
+
+  return (
+    <span className={`truncate transition-opacity duration-150 ${dimmed ? "opacity-25" : ""}`}>
+      {/* Already-typed portion */}
+      <span className="text-violet-400/50">{hintPart.slice(0, typedLen)}</span>
+      {/* Remaining hint chars to type */}
+      <span className="text-violet-300 font-bold">{hintPart.slice(typedLen)}</span>
+      {/* Rest of label */}
+      <span>{rest}</span>
+    </span>
+  );
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
   const { projects, activeProject, setActiveProjectId, deleteProject } = useProjectContext();
   const { collapsed, toggle, sidebarWidth, isDragging, onDragStart, hydrated } = useSidebarState();
 
+  const openProjectSelector = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("open-project-selector"));
+  }, []);
+
+  // Build the full list of visible nav items for hint computation
+  const allNavItems = useMemo(() => {
+    const items: NavHintItem[] = [
+      { key: "__projects", label: "Explorer", action: openProjectSelector },
+    ];
+    if (activeProject) {
+      for (const item of projectNavItems) items.push({ key: item.href, label: item.label, href: item.href });
+    }
+    for (const item of globalNavItems) items.push({ key: item.href, label: item.label, href: item.href });
+    return items;
+  }, [activeProject, openProjectSelector]);
+
+  const { active: hintActive, typed, hints, matching } = useNavHints(allNavItems);
+
   const renderNavItem = (
     item: { label: string; href: string; icon: React.ReactNode; action?: { href: string; icon: React.ReactNode } },
     active: boolean,
   ) => {
+    const hint = hints.get(item.href) ?? "";
+    const dimmed = hintActive && !matching.has(item.href);
+
     const link = (
       <Link
         href={item.href}
-        className={`flex items-center rounded-md px-2.5 py-2 text-sm transition-colors ${
+        className={`flex items-center rounded-md px-2.5 py-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 ${
           collapsed ? "justify-center" : "gap-3 min-w-0 flex-1"
         } ${
           active
@@ -219,8 +276,18 @@ export function AppSidebar() {
             : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200"
         }`}
       >
-        {item.icon}
-        {!collapsed && <span className="truncate">{item.label}</span>}
+        <span className={`transition-opacity duration-150 ${dimmed ? "opacity-25" : ""}`}>
+          {item.icon}
+        </span>
+        {!collapsed && (
+          <HintLabel
+            label={item.label}
+            hint={hint}
+            typed={typed}
+            hintActive={hintActive}
+            dimmed={dimmed}
+          />
+        )}
       </Link>
     );
 
@@ -238,7 +305,7 @@ export function AppSidebar() {
           {link}
           <Link
             href={item.action.href}
-            className="shrink-0 ml-0.5 p-1.5 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.06] transition-colors"
+            className={`shrink-0 ml-0.5 p-1.5 rounded-md text-zinc-500 outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 hover:text-zinc-200 hover:bg-white/[0.06] transition-colors ${dimmed ? "opacity-25" : ""}`}
           >
             {item.action.icon}
           </Link>
@@ -251,7 +318,7 @@ export function AppSidebar() {
 
   return (
     <aside
-      className={`relative flex shrink-0 flex-col border-r border-white/[0.06] bg-zinc-950 overflow-hidden ${
+      className={`relative flex shrink-0 flex-col order-0 border-r border-white/[0.06] bg-zinc-950 overflow-hidden ${
         isDragging ? "" : "transition-[width] duration-200 ease-in-out"
       }`}
       style={{ width: sidebarWidth, visibility: hydrated ? "visible" : "hidden" }}
@@ -259,13 +326,33 @@ export function AppSidebar() {
       <BrandHeader collapsed={collapsed} />
 
       <div className="py-3 border-b border-white/[0.06]">
-        <ProjectDropdown
-          projects={projects}
-          activeProject={activeProject}
-          onSelect={setActiveProjectId}
-          onDelete={deleteProject}
-          collapsed={collapsed}
-        />
+        {hintActive && !collapsed ? (
+          <div
+            className={`mx-3 flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-zinc-300 transition-opacity duration-150 cursor-pointer ${
+              matching.has("__projects") ? "" : "opacity-25"
+            }`}
+            onClick={openProjectSelector}
+          >
+            <svg className="h-4 w-4 shrink-0 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            <HintLabel
+              label="Explorer"
+              hint={hints.get("__projects") ?? ""}
+              typed={typed}
+              hintActive={hintActive}
+              dimmed={!matching.has("__projects")}
+            />
+          </div>
+        ) : (
+          <ProjectDropdown
+            projects={projects}
+            activeProject={activeProject}
+            onSelect={setActiveProjectId}
+            onDelete={deleteProject}
+            collapsed={collapsed}
+          />
+        )}
       </div>
 
       <nav className={`flex flex-1 flex-col ${collapsed ? "px-1.5" : "px-3"}`}>
@@ -303,12 +390,26 @@ export function AppSidebar() {
         </div>
       </nav>
 
+      {/* Hint mode indicator */}
+      {hintActive && !collapsed && (
+        <div className="px-3 py-2 border-t border-violet-500/20 bg-violet-500/[0.04]">
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className="text-violet-400 font-medium">NAV</span>
+            {typed ? (
+              <span className="font-mono text-violet-300">{typed}<span className="animate-pulse">_</span></span>
+            ) : (
+              <span className="text-zinc-500">type to jump…</span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Toggle button */}
       <div className={`border-t border-white/[0.06] ${collapsed ? "px-1.5" : "px-3"} py-3`}>
         <button
           onClick={toggle}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className={`flex w-full items-center rounded-md px-2.5 py-2 text-sm text-zinc-400 transition-colors hover:bg-white/[0.04] hover:text-zinc-200 ${
+          className={`flex w-full items-center rounded-md px-2.5 py-2 text-sm text-zinc-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 hover:bg-white/[0.04] hover:text-zinc-200 ${
             collapsed ? "justify-center" : "gap-3"
           }`}
         >

@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppSidebar } from "./components/AppSidebar";
 import { ProjectProvider } from "./components/ProjectContext";
+import { ProjectSelector } from "./components/ProjectSelector";
+import { EscapeBlur } from "./components/EscapeBlur";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,8 +33,10 @@ export default function RootLayout({
       >
         <ProjectProvider>
           <div className="flex h-screen bg-zinc-950">
+            <main className="flex-1 overflow-auto order-1">{children}</main>
             <AppSidebar />
-            <main className="flex-1 overflow-auto">{children}</main>
+            <ProjectSelector />
+            <EscapeBlur />
           </div>
         </ProjectProvider>
       </body>

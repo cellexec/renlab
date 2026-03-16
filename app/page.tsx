@@ -10,7 +10,7 @@ import type { PipelineStatus, StepTimings } from "./pipelines";
 // Types
 // =============================================================================
 
-type TabId = "dashboard" | "activity";
+type TabId = "overview" | "data" | "activity";
 type ActivityFilter = "all" | "specs" | "pipelines" | "sessions";
 type DrillDown = "success" | "scores" | "active" | "specs" | null;
 
@@ -279,7 +279,8 @@ function TabBar({
   onChange: (tab: TabId) => void;
 }) {
   const tabs: { id: TabId; label: string }[] = [
-    { id: "dashboard", label: "Dashboard" },
+    { id: "overview", label: "Overview" },
+    { id: "data", label: "Data" },
     { id: "activity", label: "Activity" },
   ];
 
@@ -946,13 +947,17 @@ export default function DashboardPage() {
   const { activeProject, activeProjectId } = useProjectContext();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<TabId>("dashboard");
+  const [tab, setTab] = useState<TabId>("overview");
   const [drillDown, setDrillDown] = useState<DrillDown>(null);
 
   // Data stores
   const [runs, setRuns] = useState<RunData[]>([]);
   const [specs, setSpecs] = useState<RawSpecRow[]>([]);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
+
+  // Overview tab navigation: 0 = specs card, 1 = pipelines card
+  const [overviewCard, setOverviewCard] = useState(0);
+  const [overviewItemIndex, setOverviewItemIndex] = useState(0);
 
   // Activity tab state
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
@@ -967,6 +972,51 @@ export default function DashboardPage() {
   // =========================================================================
   // Fetch all data
   // =========================================================================
+  // Overview card data
+  const recentSpecs = useMemo(
+    () => [...specs].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 5),
+    [specs]
+  );
+  const recentRuns = useMemo(() => runs.slice(0, 5), [runs]);
+
+  // Reset item index when switching cards
+  useEffect(() => {
+    setOverviewItemIndex(0);
+  }, [overviewCard]);
+
+  // Overview keyboard navigation
+  useEffect(() => {
+    if (tab !== "overview" || loading) return;
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      const maxItems = overviewCard === 0 ? recentSpecs.length : recentRuns.length;
+
+      if (e.key === "Tab") {
+        e.preventDefault();
+        setOverviewCard((c) => (e.shiftKey ? (c === 0 ? 1 : 0) : (c === 1 ? 0 : 1)));
+      } else if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setOverviewItemIndex((i) => Math.min(i + 1, maxItems - 1));
+      } else if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setOverviewItemIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Enter" && maxItems > 0) {
+        e.preventDefault();
+        if (overviewCard === 0) {
+          const spec = recentSpecs[overviewItemIndex];
+          if (spec) window.location.href = `/specifications/${spec.id}`;
+        } else {
+          const run = recentRuns[overviewItemIndex];
+          if (run) window.location.href = `/pipelines/${run.id}`;
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [tab, loading, overviewCard, overviewItemIndex, recentSpecs, recentRuns]);
+
   const fetchData = useCallback(async (projectId: string) => {
     const sb = getSupabase();
     const [runsResult, specsResult, sessionsResult] = await Promise.all([
@@ -1265,9 +1315,9 @@ export default function DashboardPage() {
           )}
 
           {/* ================================================================= */}
-          {/* DASHBOARD TAB                                                      */}
+          {/* OVERVIEW TAB                                                       */}
           {/* ================================================================= */}
-          {!loading && activeProject && tab === "dashboard" && (
+          {!loading && activeProject && tab === "overview" && (
             <>
               {/* 1. System Status Banner */}
               <div
@@ -1315,7 +1365,123 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* 2. Summary Stat Cards */}
+              {/* 2. Recent Specs & Pipelines */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 animate-fade-in-up" style={{ animationDelay: "100ms" }}>
+                {/* Recent Specifications */}
+                <div className={`backdrop-blur-xl bg-white/[0.03] rounded-xl overflow-hidden transition-colors ${
+                  overviewCard === 0 ? "border-2 border-violet-500/40" : "border border-white/[0.06]"
+                }`} onClick={() => setOverviewCard(0)}>
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+                    <div className="flex items-center gap-2">
+                      <IconSpec className="w-4 h-4 text-violet-400" />
+                      <span className="text-[13px] font-medium text-zinc-200">Recent Specifications</span>
+                    </div>
+                    <Link href="/specifications" className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">View all</Link>
+                  </div>
+                  <div>
+                    {recentSpecs.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-[12px] text-zinc-600">No specifications yet</div>
+                    ) : (
+                      recentSpecs.map((s, idx) => {
+                        const statusColors: Record<string, string> = {
+                          draft: "text-zinc-400 bg-zinc-500/10",
+                          pipeline: "text-indigo-400 bg-indigo-500/10",
+                          failed: "text-red-400 bg-red-500/10",
+                          cancelled: "text-zinc-500 bg-zinc-500/10",
+                          done: "text-emerald-400 bg-emerald-500/10",
+                        };
+                        const color = statusColors[s.status] ?? "text-zinc-400 bg-zinc-500/10";
+                        const isItemSelected = overviewCard === 0 && overviewItemIndex === idx;
+                        return (
+                          <Link key={s.id} href={`/specifications/${s.id}`} className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
+                            isItemSelected ? "bg-violet-500/[0.06] border-l-2 border-l-violet-500/60" : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
+                          }`}>
+                            <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${isItemSelected ? "bg-violet-400" : "bg-transparent"}`} />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[13px] text-zinc-200 truncate block">{s.title}</span>
+                            </div>
+                            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${color}`}>
+                              {s.status}
+                            </span>
+                            <span className="shrink-0 text-[10px] text-zinc-600 tabular-nums">
+                              {new Date(s.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                            </span>
+                          </Link>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Recent Pipelines */}
+                <div className={`backdrop-blur-xl bg-white/[0.03] rounded-xl overflow-hidden transition-colors ${
+                  overviewCard === 1 ? "border-2 border-indigo-500/40" : "border border-white/[0.06]"
+                }`} onClick={() => setOverviewCard(1)}>
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+                    <div className="flex items-center gap-2">
+                      <IconPipeline className="w-4 h-4 text-indigo-400" />
+                      <span className="text-[13px] font-medium text-zinc-200">Recent Pipelines</span>
+                    </div>
+                    <Link href="/pipelines" className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">View all</Link>
+                  </div>
+                  <div>
+                    {recentRuns.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-[12px] text-zinc-600">No pipeline runs yet</div>
+                    ) : (
+                      recentRuns.map((r, idx) => {
+                        const isActive = ACTIVE_STATUSES.includes(r.status);
+                        const meta = STEP_META[r.status];
+                        const statusColor = r.status === "success"
+                          ? "text-emerald-400 bg-emerald-500/10"
+                          : r.status === "failed" || r.status === "rejected"
+                            ? "text-red-400 bg-red-500/10"
+                            : r.status === "cancelled"
+                              ? "text-zinc-500 bg-zinc-500/10"
+                              : meta
+                                ? `${meta.color} ${meta.color.replace("text-", "bg-").replace("-400", "-500/10")}`
+                                : "text-zinc-400 bg-zinc-500/10";
+                        const isItemSelected = overviewCard === 1 && overviewItemIndex === idx;
+                        return (
+                          <Link key={r.id} href={`/pipelines/${r.id}`} className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
+                            isItemSelected ? "bg-indigo-500/[0.06] border-l-2 border-l-indigo-500/60" : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
+                          }`}>
+                            <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${isItemSelected ? "bg-indigo-400" : "bg-transparent"}`} />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[13px] text-zinc-200 truncate block">{r.specTitle}</span>
+                            </div>
+                            {r.reviewScore !== null && (
+                              <span className="shrink-0 text-[11px] text-zinc-500 tabular-nums font-mono">{r.reviewScore}</span>
+                            )}
+                            <span className={`shrink-0 flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${statusColor}`}>
+                              {isActive && <span className="inline-block w-1 h-1 rounded-full bg-current animate-pulse" />}
+                              {r.status}
+                            </span>
+                            <span className="shrink-0 text-[10px] text-zinc-600 tabular-nums">
+                              {new Date(r.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                            </span>
+                          </Link>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom hints */}
+              <div className="flex items-center gap-4 text-[11px] text-zinc-600 animate-fade-in-up" style={{ animationDelay: "140ms" }}>
+                <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Tab</kbd> switch card</span>
+                <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd> navigate</span>
+                <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd> open</span>
+              </div>
+            </>
+          )}
+
+          {/* ================================================================= */}
+          {/* DATA TAB                                                           */}
+          {/* ================================================================= */}
+          {!loading && activeProject && tab === "data" && (
+            <>
+              {/* 1. Summary Stat Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 animate-fade-in-up" style={{ animationDelay: "120ms" }}>
                 <StatCard
                   label="Success Rate"

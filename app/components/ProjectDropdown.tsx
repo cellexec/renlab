@@ -47,7 +47,7 @@ export function ProjectDropdown({ projects, activeProject, onSelect, onDelete, c
       <div className="flex items-center gap-1">
         <button
           onClick={() => setOpen(!open)}
-          className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-zinc-800 min-w-0"
+          className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 hover:bg-zinc-800 min-w-0"
         >
           <svg className="h-4 w-4 shrink-0 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -62,7 +62,7 @@ export function ProjectDropdown({ projects, activeProject, onSelect, onDelete, c
 
         <Link
           href="/projects"
-          className="shrink-0 rounded-md p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
+          className="shrink-0 rounded-md p-1.5 text-zinc-500 outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
           title="Manage projects"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

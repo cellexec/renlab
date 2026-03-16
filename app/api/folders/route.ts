@@ -3,8 +3,11 @@ import { readdir } from "fs/promises";
 import { homedir } from "os";
 import path from "path";
 
+const MONOREPO_DIRS = ["apps", "packages", "services", "libs"];
+
 export async function GET(req: NextRequest) {
-  const raw = req.nextUrl.searchParams.get("path") || homedir();
+  let raw = req.nextUrl.searchParams.get("path") || homedir();
+  if (raw === "~" || raw.startsWith("~/")) raw = path.join(homedir(), raw.slice(1));
   const current = path.resolve(raw);
   const parent = path.dirname(current);
 
@@ -14,18 +17,21 @@ export async function GET(req: NextRequest) {
       .filter((e) => e.isDirectory() && !e.name.startsWith("."))
       .sort((a, b) => a.name.localeCompare(b.name));
 
-    // Check each subdirectory for files (non-blocking, parallel)
+    // Check each subdirectory for files and monorepo markers (parallel)
     const dirs = await Promise.all(
       subDirs.map(async (e) => {
         const dirPath = path.join(current, e.name);
         let hasFiles = false;
+        let isMonorepo = false;
         try {
           const children = await readdir(dirPath, { withFileTypes: true });
           hasFiles = children.some((c) => c.isFile());
+          const childNames = new Set(children.filter((c) => c.isDirectory()).map((c) => c.name));
+          isMonorepo = MONOREPO_DIRS.some((d) => childNames.has(d));
         } catch {
           // unreadable — treat as empty
         }
-        return { name: e.name, path: dirPath, hasFiles };
+        return { name: e.name, path: dirPath, hasFiles, isMonorepo };
       })
     );
 
