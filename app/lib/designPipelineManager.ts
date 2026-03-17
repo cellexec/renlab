@@ -756,13 +756,29 @@ CRITICAL: Work only within the current working directory.`;
       ac.signal,
     );
 
-    // Commit any remaining changes
+    // Commit any remaining changes from the finalize agent
     await execInDir(worktreeRoot, "git", ["add", "-A"]);
     const finalizeDiff = await execInDir(worktreeRoot, "git", ["diff", "--cached", "--quiet"]);
     if (finalizeDiff.code !== 0) {
-      await execInDir(worktreeRoot, "git", [
+      const commitResult = await execInDir(worktreeRoot, "git", [
         "commit", "-m", `"Finalize design: ${specTitle.replace(/"/g, '\\"')}"`,
       ]);
+      if (commitResult.code !== 0) {
+        pushLog(runId, "finalizing", "stderr", `Commit failed: ${commitResult.stderr || commitResult.stdout}`);
+        throw new Error(`Finalize commit failed: ${commitResult.stderr || commitResult.stdout}`);
+      }
+      pushLog(runId, "finalizing", "stdout", "Finalization changes committed.");
+    } else {
+      pushLog(runId, "finalizing", "stdout", "No additional changes to commit.");
+    }
+
+    // Validate the worktree is clean before merging
+    const statusCheck = await execInDir(worktreeRoot, "git", ["status", "--porcelain"]);
+    if (statusCheck.stdout.trim()) {
+      pushLog(runId, "finalizing", "stderr", `Worktree has uncommitted files: ${statusCheck.stdout.trim().split("\n").length} files`);
+      await execInDir(worktreeRoot, "git", ["add", "-A"]);
+      await execInDir(worktreeRoot, "git", ["commit", "-m", '"Clean up uncommitted files from finalize step"']);
+      pushLog(runId, "finalizing", "stdout", "Cleaned up remaining uncommitted files.");
     }
 
     pushLog(runId, "finalizing", "stdout", "Finalization complete.");
@@ -777,12 +793,43 @@ CRITICAL: Work only within the current working directory.`;
     killDevServer(state);
     pushLog(runId, "merging_final", "stdout", "Dev server stopped.");
 
-    pushLog(runId, "merging_final", "stdout", "Merging parent branch into main...");
+    // Ensure main is checked out on the git root
+    const currentBranch = (await execInDir(gitRoot, "git", ["branch", "--show-current"])).stdout.trim();
+    if (currentBranch !== "main") {
+      pushLog(runId, "merging_final", "stdout", `Switching to main from ${currentBranch}...`);
+      await execInDir(gitRoot, "git", ["checkout", "main"]);
+    }
+
+    // Ensure main is clean before merging
+    const mainStatus = await execInDir(gitRoot, "git", ["status", "--porcelain"]);
+    if (mainStatus.stdout.trim()) {
+      pushLog(runId, "merging_final", "stderr", `Main has uncommitted changes, stashing...`);
+      await execInDir(gitRoot, "git", ["stash", "push", "-m", "design-pipeline-pre-merge"]);
+    }
+
+    pushLog(runId, "merging_final", "stdout", `Merging ${parentBranch} into main...`);
     const mergeResult = await execInDir(gitRoot, "git", [
       "merge", "--no-ff", parentBranch, "-m", `"Design Pipeline: ${specTitle.replace(/"/g, '\\"')}"`,
     ]);
     if (mergeResult.code !== 0) {
-      throw new Error(`Final merge failed: ${mergeResult.stderr}`);
+      const mergeErr = (mergeResult.stderr || mergeResult.stdout || "").trim();
+      pushLog(runId, "merging_final", "stderr", `Merge conflict detected: ${mergeErr}`);
+      pushLog(runId, "merging_final", "stdout", "Attempting auto-resolve (accept incoming changes)...");
+
+      // Auto-resolve: accept the design branch changes
+      await execInDir(gitRoot, "git", ["checkout", "--theirs", "."]);
+      await execInDir(gitRoot, "git", ["add", "-A"]);
+      const resolveResult = await execInDir(gitRoot, "git", [
+        "commit", "--no-edit",
+      ]);
+      if (resolveResult.code !== 0) {
+        const resolveErr = (resolveResult.stderr || resolveResult.stdout || "").trim();
+        pushLog(runId, "merging_final", "stderr", `Auto-resolve failed: ${resolveErr}`);
+        // Abort the merge to leave main clean
+        await execInDir(gitRoot, "git", ["merge", "--abort"]).catch(() => {});
+        throw new Error(`Final merge failed (auto-resolve unsuccessful): ${mergeErr}`);
+      }
+      pushLog(runId, "merging_final", "stdout", "Auto-resolved merge conflicts successfully.");
     }
 
     pushLog(runId, "merging_final", "stdout", "Merge successful!");
@@ -915,4 +962,80 @@ export function addDesignClient(runId: string, callback: (event: DesignPipelineS
   return () => {
     state!.clients.delete(callback);
   };
+}
+
+export function retryDesignMerge(
+  runId: string,
+  gitRoot: string,
+  branchName: string,
+  specTitle: string,
+  dbRun: { step_timings: DesignStepTimings; logs: DesignPipelineLogEntry[] },
+) {
+  const shortId = runId.slice(0, 8);
+  const worktreeDir = `.claude/worktrees/design-${shortId}`;
+
+  const existing = runs.get(runId);
+  const state: DesignPipelineState = {
+    status: "merging_final",
+    currentStep: "merging_final",
+    stepTimings: dbRun.step_timings,
+    logs: dbRun.logs,
+    clients: existing?.clients ?? new Set(),
+    abortController: new AbortController(),
+    devServerPort: null,
+    devServerProcess: null,
+    variants: new Map(),
+    resumeResolve: null,
+  };
+  runs.set(runId, state);
+
+  setRunStatus(runId, "merging_final", "merging_final");
+
+  async function execute() {
+    await updateDb(runId, { status: "merging_final", current_step: "merging_final", error_message: null, finished_at: null });
+
+    pushLog(runId, "merging_final", "stdout", "Retrying final merge...");
+
+    try {
+      // Ensure main is checked out
+      const currentBranch = (await execInDir(gitRoot, "git", ["branch", "--show-current"])).stdout.trim();
+      if (currentBranch !== "main") {
+        await execInDir(gitRoot, "git", ["checkout", "main"]);
+      }
+
+      const mergeResult = await execInDir(gitRoot, "git", [
+        "merge", "--no-ff", branchName, "-m", `"Design Pipeline: ${specTitle.replace(/"/g, '\\"')}"`,
+      ]);
+      if (mergeResult.code !== 0) {
+        const mergeErr = (mergeResult.stderr || mergeResult.stdout || "").trim();
+        pushLog(runId, "merging_final", "stderr", `Merge conflict, auto-resolving...`);
+        await execInDir(gitRoot, "git", ["checkout", "--theirs", "."]);
+        await execInDir(gitRoot, "git", ["add", "-A"]);
+        const resolveResult = await execInDir(gitRoot, "git", ["commit", "--no-edit"]);
+        if (resolveResult.code !== 0) {
+          await execInDir(gitRoot, "git", ["merge", "--abort"]).catch(() => {});
+          throw new Error(`Merge failed: ${mergeErr}`);
+        }
+        pushLog(runId, "merging_final", "stdout", "Auto-resolved conflicts.");
+      }
+
+      pushLog(runId, "merging_final", "stdout", "Merge successful!");
+      setRunStatus(runId, "success", null);
+      await updateDb(runId, { status: "success", finished_at: new Date().toISOString() });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      pushLog(runId, "merging_final", "stderr", `Merge retry failed: ${message}`);
+      setRunStatus(runId, "failed", null);
+      await updateDb(runId, { status: "failed", current_step: "merging_final", error_message: message, finished_at: new Date().toISOString() });
+    } finally {
+      if (state.status === "success") {
+        pushLog(runId, "merging_final", "stdout", "Cleaning up worktree...");
+        await execInDir(gitRoot, "git", ["worktree", "remove", worktreeDir, "--force"]).catch(() => {});
+        await execInDir(gitRoot, "git", ["branch", "-D", branchName]).catch(() => {});
+      }
+      await persistLogs(runId).catch(() => {});
+    }
+  }
+
+  execute().catch(() => {});
 }
