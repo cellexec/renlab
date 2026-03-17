@@ -269,7 +269,7 @@ export default function ProjectSelectionPage() {
                 onMouseMove={() => { if (mouseActive && selectedIndex !== i) { setSelectedIndex(i); setUserMoved(true); } }}
                 className={`border-b border-white/[0.04] px-6 py-4 transition-all duration-150 cursor-pointer border-l-2 ${
                   isSelected
-                    ? "bg-violet-500/[0.06] border-l-violet-500/60 shadow-[inset_0_0_24px_-8px_rgba(139,92,246,0.08)]"
+                    ? "bg-violet-500/[0.08] border-l-violet-500/70 shadow-[inset_0_0_32px_-6px_rgba(139,92,246,0.12),0_0_16px_-4px_rgba(139,92,246,0.15)]"
                     : "border-l-transparent hover:bg-white/[0.02]"
                 }`}
               >
