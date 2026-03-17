@@ -436,6 +436,7 @@ export default function PipelinePageShell({
   const [codingIteration, setCodingIteration] = useState<number | null>(null);
   const [reviewingIteration, setReviewingIteration] = useState<number | null>(null);
   const [gaugeAnimated, setGaugeAnimated] = useState(false);
+  const [forceMergeConfirm, setForceMergeConfirm] = useState(false);
 
   const totalIterations = Math.max(iteration, getMaxIteration(logs), run?.iterations ?? 1);
   const totalAttempts = (maxRetries > 0 ? maxRetries : (run?.maxRetries ?? 0)) + 1;
@@ -500,6 +501,32 @@ export default function PipelinePageShell({
       setSseVersion((v) => v + 1);
     } catch { setRetrying(false); }
   };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      if (forceMergeConfirm) {
+        if (e.key === "Enter") { e.preventDefault(); handleRetryMerge(); setForceMergeConfirm(false); return; }
+        if (e.key === "Escape") { e.preventDefault(); setForceMergeConfirm(false); return; }
+        return;
+      }
+
+      if (e.key === "f" && canRetryMerge && !retrying) {
+        e.preventDefault();
+        setForceMergeConfirm(true);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        router.back();
+      }
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [forceMergeConfirm, canRetryMerge, retrying, handleRetryMerge, router]);
 
   // Selected iteration (synced across coding/reviewing)
   const selectedIter = codingIteration ?? reviewingIteration ?? null;
@@ -625,8 +652,9 @@ export default function PipelinePageShell({
               </Link>
             )}
             {canRetryMerge && (
-              <button onClick={handleRetryMerge} disabled={retrying} className="rounded-lg border border-amber-700 px-4 py-2 text-sm text-amber-400 transition-colors hover:bg-amber-950/50 disabled:opacity-50 disabled:cursor-not-allowed">
-                {retrying ? "Retrying..." : displayStatus === "rejected" ? "Force Merge" : "Retry Merge"}
+              <button onClick={() => setForceMergeConfirm(true)} disabled={retrying} className="flex items-center gap-2 rounded-lg border border-amber-700 px-4 py-2 text-sm text-amber-400 transition-colors hover:bg-amber-950/50 disabled:opacity-50 disabled:cursor-not-allowed">
+                {retrying ? "Merging..." : displayStatus === "rejected" ? "Force Merge" : "Retry Merge"}
+                {!retrying && <kbd className="rounded bg-amber-500/15 border border-amber-500/20 px-1 py-0.5 text-[9px] font-medium text-amber-400">f</kbd>}
               </button>
             )}
             {isActive && !cancelling && <button onClick={handleCancel} className="rounded-lg border border-red-800 px-4 py-2 text-sm text-red-400 transition-colors hover:bg-red-950/50">Cancel</button>}
@@ -702,6 +730,43 @@ export default function PipelinePageShell({
           <StepLogViewer logs={logs} step={activeTab} selectedIteration={getSelectedIteration(activeTab)} />
         </div>
       </div>
+      {/* Force merge confirmation dialog */}
+      {forceMergeConfirm && (
+        <>
+          <div data-overlay-open className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setForceMergeConfirm(false)} />
+          <div className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px]">
+            <div className="rounded-2xl border border-white/[0.08] bg-zinc-900/95 backdrop-blur-2xl p-6 shadow-2xl">
+              <h2 className="text-sm font-medium text-zinc-300 mb-2">{displayStatus === "rejected" ? "Force Merge" : "Retry Merge"}</h2>
+              <p className="text-[13px] text-zinc-500 mb-1">
+                {displayStatus === "rejected"
+                  ? "This will merge the branch despite the review score being below threshold."
+                  : "This will retry the merge step for this pipeline run."}
+              </p>
+              {run?.reviewScore != null && (
+                <p className="text-[12px] text-zinc-600 mb-5">
+                  Score: <span className="text-amber-400 font-mono">{run.reviewScore}</span> / threshold: <span className="text-zinc-400 font-mono">{run.reviewThreshold}</span>
+                </p>
+              )}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { handleRetryMerge(); setForceMergeConfirm(false); }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-400/20 text-sm font-medium hover:bg-amber-500/30 transition-colors"
+                >
+                  <kbd className="rounded bg-amber-500/25 px-1.5 py-0.5 text-[9px] font-medium text-amber-400">Enter</kbd>
+                  {displayStatus === "rejected" ? "Force Merge" : "Retry"}
+                </button>
+                <button
+                  onClick={() => setForceMergeConfirm(false)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
+                >
+                  <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

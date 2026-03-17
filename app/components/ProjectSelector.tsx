@@ -19,6 +19,15 @@ export function ProjectSelector() {
       if ((e.ctrlKey || e.metaKey) && e.key === "p") {
         e.preventDefault();
         router.push("/project-selection");
+        return;
+      }
+      // y — copy current URL path to clipboard (vim yank)
+      if (e.key === "y" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        if ((e.target as HTMLElement)?.isContentEditable) return;
+        e.preventDefault();
+        navigator.clipboard.writeText(window.location.pathname);
       }
     };
     window.addEventListener("keydown", handler);
