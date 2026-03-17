@@ -655,6 +655,13 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
           setPipelineConfirm(false);
           return;
         }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          // Click the pipeline trigger button inside the dialog
+          const btn = document.querySelector("[data-pipeline-trigger]") as HTMLButtonElement | null;
+          if (btn && !btn.disabled) btn.click();
+          return;
+        }
         return;
       }
 
@@ -1141,6 +1148,18 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
             >
               <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">t</kbd>
               Title
+            </button>
+          )}
+          {editable && latestVersion && (
+            <button
+              onClick={() => setPipelineConfirm(true)}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Pipeline
+              <kbd className="rounded bg-emerald-500/15 border border-emerald-500/20 px-1 py-0.5 text-[9px] font-medium text-emerald-400">p</kbd>
             </button>
           )}
         </div>
@@ -1678,11 +1697,13 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                     onTrigger={triggerDesignPipeline}
                   />
                 )}
+
+                <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd>
                 <button
                   onClick={() => setPipelineConfirm(false)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-zinc-500 hover:text-zinc-300 text-sm transition-colors ml-auto"
                 >
-                  <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500">Esc</kbd>
+                  <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
                   Cancel
                 </button>
               </div>

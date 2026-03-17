@@ -83,6 +83,7 @@ export function DesignPipelineTriggerButton({
   return (
     <div className="flex items-center gap-2">
       <button
+        data-pipeline-trigger
         onClick={handleClick}
         disabled={disabled}
         title={title}
