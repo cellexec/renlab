@@ -427,6 +427,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
   const [editingTitle, setEditingTitle] = useState(false);
   const [editorViewOnly, setEditorViewOnly] = useState(true);
   const [pipelineConfirm, setPipelineConfirm] = useState(false);
+  const [pipelineDialogIndex, setPipelineDialogIndex] = useState(0);
   const [discardConfirm, setDiscardConfirm] = useState(false);
   const [restoreConfirm, setRestoreConfirm] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -450,6 +451,12 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
   const activeRunId = getActiveRunId(id);
   const activeDesignRunId = getActiveDesignRunId(id);
   const activeRun = activeRunId ? pipelineRuns.find((r) => r.id === activeRunId) : null;
+  // Most recent finished (failed/success/cancelled) run for this spec
+  const lastFinishedRun = useMemo(() => {
+    return pipelineRuns
+      .filter((r) => r.specificationId === id && !["pending", "worktree", "retrieving", "coding", "reviewing", "merging", "updating"].includes(r.status))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ?? null;
+  }, [pipelineRuns, id]);
 
   // --- Load initial content once ---
   useEffect(() => {
@@ -656,11 +663,23 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
           setPipelineConfirm(false);
           return;
         }
+        if (e.key === "j" || e.key === "ArrowDown") {
+          e.preventDefault();
+          setPipelineDialogIndex((i) => {
+            const count = lastFinishedRun ? 2 : 0; // 0 = new pipeline, 1 = view old (if exists)
+            return Math.min(i + 1, count);
+          });
+          return;
+        }
+        if (e.key === "k" || e.key === "ArrowUp") {
+          e.preventDefault();
+          setPipelineDialogIndex((i) => Math.max(i - 1, 0));
+          return;
+        }
         if (e.key === "Enter") {
           e.preventDefault();
-          // Click the pipeline trigger button inside the dialog
-          const btn = document.querySelector("[data-pipeline-trigger]") as HTMLButtonElement | null;
-          if (btn && !btn.disabled) btn.click();
+          const el = document.querySelector(`[data-pipeline-option="${pipelineDialogIndex}"]`) as HTMLElement | null;
+          if (el) el.click();
           return;
         }
         return;
@@ -926,7 +945,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
         return;
       }
 
-      // p — pipeline trigger (or jump to running pipeline)
+      // p — pipeline actions
       if (e.key === "p" && editable && latestVersion) {
         e.preventDefault();
         if (activeRunId) {
@@ -935,6 +954,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
           router.push(`/design-pipelines/${activeDesignRunId}`);
         } else {
           setPipelineConfirm(true);
+          setPipelineDialogIndex(0);
         }
         return;
       }
@@ -982,7 +1002,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
     editable, hasChanges, outlineSearch, handleSave, saveAndExitEdit,
     versions, historyIndex, historySelected, historyShowDiff,
     discardAndExitEdit, scrollOutlineItemIntoView, scrollEditorToOutlineItem, router, latestVersion, viewingVersion,
-    activeRunId, activeDesignRunId,
+    activeRunId, activeDesignRunId, lastFinishedRun, pipelineDialogIndex,
   ]);
 
   /* ================================================================== */
@@ -1701,64 +1721,150 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
       )}
 
       {/* ============================================================= */}
-      {/*  PIPELINE TRIGGER DIALOG                                       */}
+      {/*  PIPELINE DIALOG — navigable list                              */}
       {/* ============================================================= */}
-      {pipelineConfirm && (
-        <>
-          <div
-            data-overlay-open
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-            style={{ animation: "fadeIn 0.15s ease-out" }}
-            onClick={() => setPipelineConfirm(false)}
-          />
-          <div
-            className="fixed z-50 top-1/2 left-1/2 w-[380px]"
-            style={{ animation: "modalIn 0.2s ease-out forwards" }}
-          >
-            <div className="rounded-2xl border border-white/[0.08] bg-zinc-900/95 backdrop-blur-2xl p-6 shadow-2xl">
-              <h2 className="text-sm font-medium text-zinc-300 mb-2">Trigger Pipeline</h2>
-              <p className="text-[13px] text-zinc-500 mb-5">
-                This will start the {spec.type === "ui-refactor" ? "design" : "feature"} pipeline for this specification. Continue?
-              </p>
-              <div className="flex items-center gap-2">
-                {activeProject && editable && spec.type === "feature" && (
-                  <PipelineTriggerButton
-                    specificationId={id}
-                    specVersionId={latestVersion?.id ?? null}
-                    specContent={content}
-                    specTitle={title}
-                    threshold={activeProject.pipelineThreshold}
-                    maxRetries={activeProject.maxRetries}
-                    hasActiveRun={hasActiveRun(id)}
-                    activeRunId={getActiveRunId(id)}
-                    onTrigger={triggerPipeline}
-                  />
-                )}
-                {activeProject && editable && spec.type === "ui-refactor" && (
-                  <DesignPipelineTriggerButton
-                    specificationId={id}
-                    specVersionId={latestVersion?.id ?? null}
-                    specContent={content}
-                    specTitle={title}
-                    hasActiveRun={hasActiveDesignRun(id)}
-                    activeRunId={getActiveDesignRunId(id)}
-                    onTrigger={triggerDesignPipeline}
-                  />
-                )}
+      {pipelineConfirm && (() => {
+        const options: { key: string; label: string; description: string; icon: React.ReactNode; action: () => void }[] = [];
 
-                <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd>
-                <button
-                  onClick={() => setPipelineConfirm(false)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-zinc-500 hover:text-zinc-300 text-sm transition-colors ml-auto"
-                >
-                  <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
-                  Cancel
-                </button>
+        // Option: New pipeline
+        options.push({
+          key: "new",
+          label: "New Pipeline",
+          description: lastFinishedRun ? "Start a fresh pipeline run with a new worktree" : `Start the ${spec.type === "ui-refactor" ? "design" : "feature"} pipeline`,
+          icon: (
+            <svg className="h-5 w-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          ),
+          action: () => {
+            const btn = document.querySelector("[data-pipeline-trigger]") as HTMLButtonElement | null;
+            if (btn && !btn.disabled) btn.click();
+          },
+        });
+
+        // Option: View last run (if exists)
+        if (lastFinishedRun) {
+          const isFailed = lastFinishedRun.status === "failed" || lastFinishedRun.status === "rejected";
+          options.push({
+            key: "view",
+            label: `View ${isFailed ? "Failed" : "Last"} Pipeline`,
+            description: `${lastFinishedRun.status} — ${new Date(lastFinishedRun.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}${lastFinishedRun.reviewScore !== null ? ` · score ${lastFinishedRun.reviewScore}` : ""}`,
+            icon: isFailed ? (
+              <svg className="h-5 w-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-4.5h6m0 0v6m0-6L9.75 14.25" />
+              </svg>
+            ),
+            action: () => {
+              setPipelineConfirm(false);
+              router.push(`/pipelines/${lastFinishedRun.id}`);
+            },
+          });
+        }
+
+        return (
+          <>
+            <div
+              data-overlay-open
+              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+              style={{ animation: "fadeIn 0.15s ease-out" }}
+              onClick={() => setPipelineConfirm(false)}
+            />
+            <div
+              className="fixed z-50 top-1/2 left-1/2 w-[380px]"
+              style={{ animation: "modalIn 0.2s ease-out forwards" }}
+            >
+              <div className="rounded-2xl border border-white/[0.08] bg-zinc-900/95 backdrop-blur-2xl shadow-2xl overflow-hidden">
+                <div className="px-5 pt-5 pb-3">
+                  <h2 className="text-sm font-medium text-zinc-200">Pipeline</h2>
+                  <p className="text-[12px] text-zinc-600 mt-0.5">Select an action</p>
+                </div>
+
+                {/* Navigable options list */}
+                <div className="pb-2">
+                  {options.map((opt, i) => {
+                    const isSelected = pipelineDialogIndex === i;
+                    return (
+                      <div
+                        key={opt.key}
+                        data-pipeline-option={i}
+                        onClick={opt.action}
+                        className={`flex items-center gap-3 px-5 py-3 cursor-pointer transition-all duration-100 border-l-2 ${
+                          isSelected
+                            ? "bg-violet-500/[0.06] border-l-violet-500/60"
+                            : "border-l-transparent hover:bg-white/[0.02]"
+                        }`}
+                      >
+                        <div className="shrink-0">{opt.icon}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[13px] font-medium ${isSelected ? "text-zinc-100" : "text-zinc-300"}`}>
+                              {opt.label}
+                            </span>
+                            {isSelected && (
+                              <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-zinc-600 block mt-0.5">{opt.description}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Hidden trigger buttons */}
+                <div className="hidden">
+                  {activeProject && editable && spec.type === "feature" && (
+                    <PipelineTriggerButton
+                      specificationId={id}
+                      specVersionId={latestVersion?.id ?? null}
+                      specContent={content}
+                      specTitle={title}
+                      threshold={activeProject.pipelineThreshold}
+                      maxRetries={activeProject.maxRetries}
+                      hasActiveRun={hasActiveRun(id)}
+                      activeRunId={getActiveRunId(id)}
+                      onTrigger={triggerPipeline}
+                    />
+                  )}
+                  {activeProject && editable && spec.type === "ui-refactor" && (
+                    <DesignPipelineTriggerButton
+                      specificationId={id}
+                      specVersionId={latestVersion?.id ?? null}
+                      specContent={content}
+                      specTitle={title}
+                      hasActiveRun={hasActiveDesignRun(id)}
+                      activeRunId={getActiveDesignRunId(id)}
+                      onTrigger={triggerDesignPipeline}
+                    />
+                  )}
+                </div>
+
+                {/* Bottom hints */}
+                <div className="border-t border-white/[0.06] px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+                  <span>
+                    <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">j</kbd>
+                    {" "}
+                    <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">k</kbd>
+                    {" navigate"}
+                  </span>
+                  <span>
+                    <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Enter</kbd>
+                    {" select"}
+                  </span>
+                  <span>
+                    <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
+                    {" close"}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        );
+      })()}
 
       {/* ============================================================= */}
       {/*  SAVE/DISCARD DIALOG                                           */}
