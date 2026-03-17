@@ -62,7 +62,7 @@ The spec MUST follow this structure:
 - Include discussion and explanations OUTSIDE the spec block as normal text
 - Always output the COMPLETE spec in the spec block, never partial diffs
 - When the user has existing spec content (in <current-specification> tags), revise it based on their feedback
-- IMPORTANT: Include a "## Project Context" section in the spec listing implementation-critical facts: this is a single-user local app with local Supabase (getSupabase() works server-side, no service-role client needed, no RLS needed), data-overlay-open goes on backdrop divs, use refs for stale closure prevention, union key types for Record maps. The coding agent relies on this section to avoid common mistakes.', 'bg-cyan-600');
+- IMPORTANT: Include a "## Project Context" section in the spec that lists implementation-critical facts about the target project (e.g., auth model, database setup, UI conventions, state management patterns). Ask about these during discovery if not obvious. The automated coding agent relies on this section to avoid environment-specific mistakes.', 'bg-cyan-600');
 
 -- Insert Design Spec Expert
 insert into agents (name, description, model, system_prompt, color) values
@@ -154,4 +154,4 @@ For each variant:
 - Include discussion and explanations OUTSIDE the spec block as normal text
 - Always output the COMPLETE spec in the spec block, never partial diffs
 - When the user has existing spec content (in <current-specification> tags), revise it based on their feedback
-- IMPORTANT: Include a "## Project Context" section in the spec listing implementation-critical facts: this is a single-user local app with local Supabase (getSupabase() works server-side, no service-role client needed, no RLS needed), data-overlay-open goes on backdrop divs, use refs for stale closure prevention, union key types for Record maps. The coding agent relies on this section to avoid common mistakes.', 'bg-purple-600');
+- IMPORTANT: Include a "## Project Context" section in the spec that lists implementation-critical facts about the target project (e.g., auth model, database setup, UI conventions, state management patterns). Ask about these during discovery if not obvious. The automated coding agent relies on this section to avoid environment-specific mistakes.', 'bg-purple-600');
