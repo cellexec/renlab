@@ -406,7 +406,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
     updateStatus,
   } = useSpecificationStore(activeProjectId);
 
-  const { hasActiveRun, getActiveRunId, triggerPipeline } = usePipelineStore(activeProject?.id ?? null);
+  const { runs: pipelineRuns, hasActiveRun, getActiveRunId, triggerPipeline } = usePipelineStore(activeProject?.id ?? null);
   const { hasActiveRun: hasActiveDesignRun, getActiveRunId: getActiveDesignRunId, triggerDesignPipeline } = useDesignPipelineStore(activeProject?.id ?? null);
 
   // --- Core state ---
@@ -449,6 +449,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
   const editable = isEditable(id);
   const activeRunId = getActiveRunId(id);
   const activeDesignRunId = getActiveDesignRunId(id);
+  const activeRun = activeRunId ? pipelineRuns.find((r) => r.id === activeRunId) : null;
 
   // --- Load initial content once ---
   useEffect(() => {
@@ -925,10 +926,16 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
         return;
       }
 
-      // p — pipeline trigger
+      // p — pipeline trigger (or jump to running pipeline)
       if (e.key === "p" && editable && latestVersion) {
         e.preventDefault();
-        setPipelineConfirm(true);
+        if (activeRunId) {
+          router.push(`/pipelines/${activeRunId}`);
+        } else if (activeDesignRunId) {
+          router.push(`/design-pipelines/${activeDesignRunId}`);
+        } else {
+          setPipelineConfirm(true);
+        }
         return;
       }
 
@@ -975,6 +982,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
     editable, hasChanges, outlineSearch, handleSave, saveAndExitEdit,
     versions, historyIndex, historySelected, historyShowDiff,
     discardAndExitEdit, scrollOutlineItemIntoView, scrollEditorToOutlineItem, router, latestVersion, viewingVersion,
+    activeRunId, activeDesignRunId,
   ]);
 
   /* ================================================================== */
@@ -1151,16 +1159,27 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
             </button>
           )}
           {editable && latestVersion && (
-            <button
-              onClick={() => setPipelineConfirm(true)}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              Pipeline
-              <kbd className="rounded bg-emerald-500/15 border border-emerald-500/20 px-1 py-0.5 text-[9px] font-medium text-emerald-400">p</kbd>
-            </button>
+            activeRunId || activeDesignRunId ? (
+              <Link
+                href={activeRunId ? `/pipelines/${activeRunId}` : `/design-pipelines/${activeDesignRunId}`}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-medium text-blue-300 bg-blue-500/10 border border-blue-400/20 hover:bg-blue-500/20 transition-all"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
+                Pipeline
+                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">p</kbd>
+              </Link>
+            ) : (
+              <button
+                onClick={() => setPipelineConfirm(true)}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Pipeline
+                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">p</kbd>
+              </button>
+            )
           )}
         </div>
 
@@ -1220,6 +1239,35 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                   <span className="text-zinc-400">{meta.value}</span>
                 </div>
               ))}
+              {activeRun && (
+                <>
+                  <div className="mx-2 my-1 border-t border-white/[0.06]" />
+                  <Link
+                    href={`/pipelines/${activeRun.id}`}
+                    className="block rounded-lg mx-1 px-2 py-2 bg-blue-500/[0.06] border border-blue-400/10 hover:bg-blue-500/10 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
+                      <span className="text-[11px] font-medium text-blue-300">Pipeline Running</span>
+                      <kbd className="ml-auto rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">p</kbd>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                      <span>Step</span>
+                      <span className="text-blue-300/80 capitalize">{activeRun.status}</span>
+                    </div>
+                    {activeRun.reviewScore !== null && (
+                      <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                        <span>Score</span>
+                        <span className="text-zinc-400 font-mono">{activeRun.reviewScore}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                      <span>Iteration</span>
+                      <span className="text-zinc-400 font-mono">{activeRun.iterations}/{activeRun.maxRetries + 1}</span>
+                    </div>
+                  </Link>
+                </>
+              )}
             </div>
           )}
 
