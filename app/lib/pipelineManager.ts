@@ -574,6 +574,15 @@ Read knowledge docs using Glob/Read. Output up to 5 most relevant docs as:
 CRITICAL: You MUST only read and write files within your current working directory. NEVER access files outside the worktree (e.g., do not navigate to parent directories or use absolute paths pointing to the main repository). All file paths should be relative to your cwd or absolute paths within: ${worktreeCwd}
 
 Read the codebase first to understand the existing patterns, then implement all the changes described in the spec.
+
+<project-conventions>
+- This is a single-user local Next.js app with local Supabase. No multi-tenant auth, no RLS policies needed.
+- getSupabase() returns a Supabase client that works on BOTH client and server side (same anon key). No service-role client needed.
+- All overlays use data-overlay-open on the BACKDROP div (the fixed inset-0 element), not on the panel itself. Check existing overlays for reference.
+- Use useCallback/useMemo for performance. Use refs (notificationsRef.current) to avoid stale closures in callbacks.
+- Side effects (localStorage writes, DOM mutations) NEVER go inside useMemo — always in useEffect.
+- Type maps/lookups use union key types (Record<'a' | 'b', ...>) not Record<string, ...>.
+</project-conventions>
 ${knowledgeContext ? `\n<project-knowledge>\n${knowledgeContext}\n</project-knowledge>\n` : ""}
 <specification>
 ${specContent}
