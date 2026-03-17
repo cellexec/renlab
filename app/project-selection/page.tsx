@@ -267,20 +267,25 @@ export default function ProjectSelectionPage() {
                 key={p.id}
                 onClick={() => selectAndGo(p.id)}
                 onMouseMove={() => { if (mouseActive && selectedIndex !== i) { setSelectedIndex(i); setUserMoved(true); } }}
-                className={`border-b border-white/[0.04] px-6 py-4 transition-colors cursor-pointer ${
+                className={`border-b border-white/[0.04] px-6 py-4 transition-all duration-150 cursor-pointer border-l-2 ${
                   isSelected
-                    ? "bg-violet-500/[0.04] border-l-2 border-l-violet-500/60"
-                    : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
+                    ? "bg-violet-500/[0.06] border-l-violet-500/60 shadow-[inset_0_0_24px_-8px_rgba(139,92,246,0.08)]"
+                    : "border-l-transparent hover:bg-white/[0.02]"
                 }`}
               >
                 <div className="flex items-center gap-4">
-                  <div className={`h-2 w-2 shrink-0 rounded-full transition-colors ${isSelected ? "bg-violet-400" : "bg-transparent"}`} />
-                  <svg className={`h-5 w-5 shrink-0 ${isActive ? "text-violet-400" : "text-zinc-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                  </svg>
+                  <div className="h-5 w-5 shrink-0 flex items-center justify-center">
+                    {isSelected ? (
+                      <svg className="h-5 w-5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                    ) : (
+                      <span className="h-5 w-5" />
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2.5">
-                      <FuzzyText text={p.title} query={query} className="text-sm font-medium text-zinc-200" />
+                      <FuzzyText text={p.title} query={query} className={`text-sm font-medium ${isSelected ? "text-zinc-100" : "text-zinc-300"}`} />
                       {isActive && (
                         <span className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">ACTIVE</span>
                       )}
