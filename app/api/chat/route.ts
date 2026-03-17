@@ -106,13 +106,50 @@ export async function POST(req: Request) {
           }
         }
 
-        const messages = stream(userPrompt, {
-          model,
-          ...(isResume ? { resume: sessionId } : { sessionId }),
-          ...(finalSystemPrompt ? { appendSystemPrompt: finalSystemPrompt } : {}),
-          ...(allowedTools ? { allowedTools } : {}),
-          ...(projectPath ? { cwd: projectPath } : {}),
-        });
+        async function* createStream(useResume: boolean) {
+          const sid = useResume ? sessionId : randomUUID();
+          const s = stream(userPrompt, {
+            model,
+            ...(useResume ? { resume: sid } : { sessionId: sid }),
+            ...(finalSystemPrompt ? { appendSystemPrompt: finalSystemPrompt } : {}),
+            ...(allowedTools ? { allowedTools } : {}),
+            ...(projectPath ? { cwd: projectPath } : {}),
+          });
+          let first = true;
+          for await (const msg of s) {
+            if (first && !useResume) {
+              // Send fresh sessionId to client
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({ sessionId: sid })}\n\n`
+                )
+              );
+            }
+            first = false;
+            yield msg;
+          }
+        }
+
+        let messages;
+        if (isResume) {
+          try {
+            // Try to resume existing session
+            const iter = createStream(true);
+            // Test first message to see if resume works
+            const first = await iter.next();
+            if (first.done) throw new Error("Empty stream");
+            // It worked — create a wrapper that yields the first + rest
+            messages = (async function* () {
+              yield first.value;
+              yield* iter;
+            })();
+          } catch {
+            // Resume failed — fall back to fresh session
+            messages = createStream(false);
+          }
+        } else {
+          messages = createStream(false);
+        }
 
         for await (const msg of messages) {
           if (msg.type !== "stream_event") continue;
