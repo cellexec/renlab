@@ -1,29 +1,8 @@
-import { stream } from "node-claude-sdk";
 import { randomUUID } from "crypto";
 import { getSupabase } from "../../lib/supabase";
-import { hasKnowledgeBase, getArchitectureOverview } from "../../lib/knowledgeManager";
+import { startChatStream } from "../../lib/chatManager";
 
-export const maxDuration = 120;
 export const dynamic = "force-dynamic";
-
-type ContentBlock =
-  | { type: "text"; text: string }
-  | { type: "tool_use"; name: string; detail: string }
-  | { type: "ask_user_question"; questions: unknown[] };
-
-function formatToolDetail(
-  name: string,
-  input: Record<string, unknown>
-): string {
-  if (input.file_path) return ` ${input.file_path}`;
-  if (name === "Bash" && input.command)
-    return ` $ ${String(input.command).slice(0, 120)}`;
-  if (input.description) return ` ${String(input.description).slice(0, 120)}`;
-  if (input.pattern) return ` ${input.pattern}`;
-  if (input.query) return ` ${String(input.query).slice(0, 120)}`;
-  if (input.prompt) return ` ${String(input.prompt).slice(0, 120)}`;
-  return "";
-}
 
 export async function POST(req: Request) {
   const {
@@ -56,222 +35,18 @@ export async function POST(req: Request) {
     assistantMessageId = data?.id ?? null;
   }
 
-  const encoder = new TextEncoder();
-  const readable = new ReadableStream({
-    async start(controller) {
-      // Send sessionId + assistantMessageId to client immediately
-      controller.enqueue(
-        encoder.encode(
-          `data: ${JSON.stringify({ sessionId, assistantMessageId })}\n\n`
-        )
-      );
-
-      const blocks: ContentBlock[] = [];
-      let currentToolName: string | null = null;
-      let toolInputJson = "";
-      let lastFlush = 0;
-
-      function serializeContent(): string {
-        return JSON.stringify(blocks);
-      }
-
-      function flushDb() {
-        if (!assistantMessageId) return;
-        const now = Date.now();
-        if (now - lastFlush > 500) {
-          lastFlush = now;
-          getSupabase()
-            .from("messages")
-            .update({ content: serializeContent() })
-            .eq("id", assistantMessageId)
-            .then(() => {});
-        }
-      }
-
-      try {
-        // Inject project knowledge into system prompt if available
-        let finalSystemPrompt = systemPrompt || "";
-        if (projectPath) {
-          try {
-            const hasKb = await hasKnowledgeBase(projectPath);
-            if (hasKb) {
-              const overview = await getArchitectureOverview(projectPath);
-              if (overview) {
-                const knowledgeBlock = `\n<project-knowledge>\n${overview}\n</project-knowledge>\nUse this knowledge to write better specifications grounded in the project's actual architecture.`;
-                finalSystemPrompt = finalSystemPrompt ? `${finalSystemPrompt}\n${knowledgeBlock}` : knowledgeBlock;
-              }
-            }
-          } catch {
-            // Non-fatal — continue without knowledge
-          }
-        }
-
-        async function* createStream(useResume: boolean) {
-          const sid = useResume ? sessionId : randomUUID();
-          const s = stream(userPrompt, {
-            model,
-            ...(useResume ? { resume: sid } : { sessionId: sid }),
-            ...(finalSystemPrompt ? { appendSystemPrompt: finalSystemPrompt } : {}),
-            ...(allowedTools ? { allowedTools } : {}),
-            ...(projectPath ? { cwd: projectPath } : {}),
-          });
-          let first = true;
-          for await (const msg of s) {
-            if (first && !useResume) {
-              // Send fresh sessionId to client
-              controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({ sessionId: sid })}\n\n`
-                )
-              );
-            }
-            first = false;
-            yield msg;
-          }
-        }
-
-        let messages;
-        if (isResume) {
-          try {
-            // Try to resume existing session
-            const iter = createStream(true);
-            // Test first message to see if resume works
-            const first = await iter.next();
-            if (first.done) throw new Error("Empty stream");
-            // It worked — create a wrapper that yields the first + rest
-            messages = (async function* () {
-              yield first.value;
-              yield* iter;
-            })();
-          } catch {
-            // Resume failed — fall back to fresh session
-            messages = createStream(false);
-          }
-        } else {
-          messages = createStream(false);
-        }
-
-        for await (const msg of messages) {
-          if (msg.type !== "stream_event") continue;
-          const { event } = msg;
-
-          if (event.type === "content_block_start") {
-            if (
-              event.content_block?.type === "tool_use" &&
-              event.content_block.name
-            ) {
-              currentToolName = event.content_block.name;
-              toolInputJson = "";
-            } else {
-              currentToolName = null;
-            }
-          } else if (event.type === "content_block_delta") {
-            if (event.delta?.type === "text_delta" && event.delta.text) {
-              const text = event.delta.text;
-              // Append to last text block or create new one
-              const last = blocks[blocks.length - 1];
-              if (last && last.type === "text") {
-                last.text += text;
-              } else {
-                blocks.push({ type: "text", text });
-              }
-              controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({ type: "text_delta", text })}\n\n`
-                )
-              );
-              flushDb();
-            } else if (event.delta?.type === "input_json_delta") {
-              const partial =
-                (event.delta as Record<string, string>).partial_json ??
-                event.delta.text ??
-                "";
-              toolInputJson += partial;
-            }
-          } else if (event.type === "content_block_stop") {
-            if (currentToolName) {
-              let detail = "";
-              let parsedInput: Record<string, unknown> = {};
-              try {
-                parsedInput = JSON.parse(toolInputJson) as Record<
-                  string,
-                  unknown
-                >;
-                detail = formatToolDetail(currentToolName, parsedInput);
-              } catch {}
-
-              if (currentToolName === "AskUserQuestion" && Array.isArray(parsedInput.questions)) {
-                const block = {
-                  type: "ask_user_question" as const,
-                  questions: parsedInput.questions,
-                };
-                blocks.push(block);
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify(block)}\n\n`
-                  )
-                );
-              } else {
-                blocks.push({
-                  type: "tool_use",
-                  name: currentToolName,
-                  detail,
-                });
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ type: "tool_use", name: currentToolName, detail })}\n\n`
-                  )
-                );
-              }
-              flushDb();
-              currentToolName = null;
-              toolInputJson = "";
-            }
-          }
-        }
-
-        // Final update with complete content
-        if (assistantMessageId) {
-          await getSupabase()
-            .from("messages")
-            .update({ content: serializeContent() })
-            .eq("id", assistantMessageId);
-        }
-
-        // Update session_id on sessions row for new sessions
-        if (clientId) {
-          await getSupabase()
-            .from("sessions")
-            .update({ session_id: sessionId })
-            .eq("client_id", clientId);
-        }
-
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-
-        // Update message with error text
-        if (assistantMessageId) {
-          await getSupabase()
-            .from("messages")
-            .update({ content: `Error: ${message}` })
-            .eq("id", assistantMessageId);
-        }
-
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ error: message })}\n\n`)
-        );
-      } finally {
-        controller.close();
-      }
-    },
+  // Start the stream in the background (fire and forget)
+  startChatStream({
+    prompt: userPrompt,
+    model,
+    sessionId,
+    isResume,
+    systemPrompt,
+    allowedTools,
+    projectPath,
+    clientId,
+    assistantMessageId,
   });
 
-  return new Response(readable, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
-  });
+  return Response.json({ sessionId, assistantMessageId });
 }

@@ -243,6 +243,7 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
     }
 
     try {
+      // Phase 1: Kick off background stream
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -258,9 +259,41 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
         }),
       });
 
+      const initData = await res.json();
+      if (initData.sessionId) handleSessionIdReceived(initData.sessionId);
+      if (initData.assistantMessageId) {
+        const current = messagesRef.current;
+        const updated = current.map((msg, idx) =>
+          idx === current.length - 1 && msg.role === "assistant"
+            ? { ...msg, id: initData.assistantMessageId }
+            : msg
+        );
+        messagesRef.current = updated;
+        updateMessages(clientId, updated);
+      }
+
+      // Phase 2: Connect to SSE for live updates
+      await connectToStream(clientId);
+    } catch (err) {
+      const current = messagesRef.current;
+      const updated = [...current];
+      updated[updated.length - 1] = {
+        ...updated[updated.length - 1],
+        content: `Error: ${err}`,
+      };
+      messagesRef.current = updated;
+      updateMessages(clientId, updated);
+      setIsStreaming(false);
+    }
+  }, [input, isStreaming, clientId, agent, sessionId, addMessage, updateMessages, handleSessionIdReceived, onFirstMessageSent]);
+
+  // Connect to the SSE stream endpoint for a given clientId
+  const connectToStream = useCallback(async (cid: string) => {
+    try {
+      const res = await fetch(`/api/chat/${cid}/stream`);
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
-      if (!reader) throw new Error("No response body");
+      if (!reader) { setIsStreaming(false); return; }
 
       let buffer = "";
       while (true) {
@@ -276,112 +309,78 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
           if (data === "[DONE]") continue;
           try {
             const parsed = JSON.parse(data);
-            if (parsed.sessionId) {
-              handleSessionIdReceived(parsed.sessionId);
-            }
-            if (parsed.assistantMessageId) {
-              const current = messagesRef.current;
-              const updated = current.map((msg, idx) =>
-                idx === current.length - 1 && msg.role === "assistant"
-                  ? { ...msg, id: parsed.assistantMessageId }
-                  : msg
-              );
-              messagesRef.current = updated;
-              updateMessages(clientId, updated);
-            }
-            if (parsed.type === "text_delta") {
-              const current = messagesRef.current;
-              const last = current[current.length - 1];
-              if (last?.role === "assistant") {
-                const blocks = [...(last.blocks ?? [])];
-                const lastBlock = blocks[blocks.length - 1];
-                if (lastBlock && lastBlock.type === "text") {
-                  blocks[blocks.length - 1] = {
-                    ...lastBlock,
-                    text: lastBlock.text + parsed.text,
-                  };
-                } else {
-                  blocks.push({ type: "text", text: parsed.text });
-                }
-                const updated = current.map((msg, idx) =>
-                  idx === current.length - 1
-                    ? { ...msg, content: msg.content + parsed.text, blocks }
-                    : msg
-                );
-                messagesRef.current = updated;
-                updateMessages(clientId, updated);
+            // Handle buffered events (replayed on reconnect)
+            if (parsed.type === "buffer" && Array.isArray(parsed.events)) {
+              for (const event of parsed.events) {
+                applyStreamEvent(event, cid);
               }
-            } else if (parsed.type === "tool_use") {
-              const current = messagesRef.current;
-              const last = current[current.length - 1];
-              if (last?.role === "assistant") {
-                const blocks: ContentBlock[] = [
-                  ...(last.blocks ?? []),
-                  { type: "tool_use", name: parsed.name, detail: parsed.detail },
-                ];
-                const updated = current.map((msg, idx) =>
-                  idx === current.length - 1
-                    ? { ...msg, blocks }
-                    : msg
-                );
-                messagesRef.current = updated;
-                updateMessages(clientId, updated);
-              }
-            } else if (parsed.type === "ask_user_question" && Array.isArray(parsed.questions)) {
-              const current = messagesRef.current;
-              const last = current[current.length - 1];
-              if (last?.role === "assistant") {
-                const blocks: ContentBlock[] = [
-                  ...(last.blocks ?? []),
-                  { type: "ask_user_question", questions: parsed.questions as AskQuestion[] },
-                ];
-                const updated = current.map((msg, idx) =>
-                  idx === current.length - 1
-                    ? { ...msg, blocks }
-                    : msg
-                );
-                messagesRef.current = updated;
-                updateMessages(clientId, updated);
-              }
-            } else if (parsed.text && !parsed.type) {
-              // Legacy: plain { text } events without .type
-              const current = messagesRef.current;
-              const updated = current.map((msg, idx) =>
-                idx === current.length - 1 && msg.role === "assistant"
-                  ? { ...msg, content: msg.content + parsed.text }
-                  : msg
-              );
-              messagesRef.current = updated;
-              updateMessages(clientId, updated);
+              continue;
             }
-            if (parsed.error) {
-              const current = messagesRef.current;
-              const updated = current.map((msg, idx) =>
-                idx === current.length - 1
-                  ? { ...msg, content: `Error: ${parsed.error}` }
-                  : msg
-              );
-              messagesRef.current = updated;
-              updateMessages(clientId, updated);
-            }
-          } catch {
-            // skip
-          }
+            applyStreamEvent(parsed, cid);
+          } catch {}
         }
       }
-    } catch (err) {
-      const current = messagesRef.current;
-      const updated = [...current];
-      updated[updated.length - 1] = {
-        ...updated[updated.length - 1],
-        content: `Error: ${err}`,
-      };
-      messagesRef.current = updated;
-      updateMessages(clientId, updated);
+    } catch {
+      // Stream connection failed
     } finally {
       setIsStreaming(false);
     }
-  }, [input, isStreaming, clientId, agent, sessionId, addMessage, updateMessages, handleSessionIdReceived, onFirstMessageSent]);
+  }, []);
+
+  // Apply a single SSE event to the message state
+  const applyStreamEvent = useCallback((parsed: Record<string, unknown>, cid: string) => {
+    if (parsed.type === "init" && parsed.sessionId) {
+      handleSessionIdReceived(parsed.sessionId as string);
+      return;
+    }
+    if (parsed.type === "done" || parsed.type === "error") {
+      if (parsed.type === "error" && parsed.error) {
+        const current = messagesRef.current;
+        const updated = current.map((msg, idx) =>
+          idx === current.length - 1 ? { ...msg, content: `Error: ${parsed.error}` } : msg
+        );
+        messagesRef.current = updated;
+        updateMessages(cid, updated);
+      }
+      return;
+    }
+    if (parsed.type === "text_delta") {
+      const current = messagesRef.current;
+      const last = current[current.length - 1];
+      if (last?.role === "assistant") {
+        const blocks = [...(last.blocks ?? [])];
+        const lastBlock = blocks[blocks.length - 1];
+        if (lastBlock && lastBlock.type === "text") {
+          blocks[blocks.length - 1] = { ...lastBlock, text: lastBlock.text + (parsed.text as string) };
+        } else {
+          blocks.push({ type: "text", text: parsed.text as string });
+        }
+        const updated = current.map((msg, idx) =>
+          idx === current.length - 1 ? { ...msg, content: msg.content + (parsed.text as string), blocks } : msg
+        );
+        messagesRef.current = updated;
+        updateMessages(cid, updated);
+      }
+    } else if (parsed.type === "tool_use") {
+      const current = messagesRef.current;
+      const last = current[current.length - 1];
+      if (last?.role === "assistant") {
+        const blocks: ContentBlock[] = [...(last.blocks ?? []), { type: "tool_use", name: parsed.name as string, detail: parsed.detail as string }];
+        const updated = current.map((msg, idx) => idx === current.length - 1 ? { ...msg, blocks } : msg);
+        messagesRef.current = updated;
+        updateMessages(cid, updated);
+      }
+    } else if (parsed.type === "ask_user_question" && Array.isArray(parsed.questions)) {
+      const current = messagesRef.current;
+      const last = current[current.length - 1];
+      if (last?.role === "assistant") {
+        const blocks: ContentBlock[] = [...(last.blocks ?? []), { type: "ask_user_question", questions: parsed.questions as AskQuestion[] }];
+        const updated = current.map((msg, idx) => idx === current.length - 1 ? { ...msg, blocks } : msg);
+        messagesRef.current = updated;
+        updateMessages(cid, updated);
+      }
+    }
+  }, [handleSessionIdReceived, updateMessages]);
 
   // Find the last applyable assistant message
   const lastApplyableMsg = useMemo(() => {
@@ -392,6 +391,20 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
     }
     return null;
   }, [messages, onApplySpec, isStreaming]);
+
+  // Reconnect to background stream on mount if there's an incomplete assistant message
+  useEffect(() => {
+    if (!clientId || isStreaming) return;
+    const msgs = messagesRef.current;
+    if (msgs.length > 0) {
+      const last = msgs[msgs.length - 1];
+      // If the last message is an empty/in-progress assistant message, try reconnecting
+      if (last.role === "assistant" && !last.content?.trim()) {
+        setIsStreaming(true);
+        connectToStream(clientId);
+      }
+    }
+  }, [clientId]); // Only run once when clientId is set
 
   // "a" key to apply last assistant spec (when textarea not focused)
   useEffect(() => {
