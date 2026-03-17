@@ -89,12 +89,15 @@ export function AgentChat({ agentName, context, onApplySpec, initialMessage, aut
     resizeTextarea();
   }, [input, resizeTextarea]);
 
-  // Auto-focus textarea once session is ready
+  // Auto-focus textarea immediately and after overlay animation
   useEffect(() => {
-    if (autoFocus && clientId && textareaRef.current) {
-      textareaRef.current.focus();
-    }
-  }, [autoFocus, clientId]);
+    if (!autoFocus) return;
+    // Focus immediately (textarea is now readOnly instead of disabled, so it can receive focus)
+    requestAnimationFrame(() => textareaRef.current?.focus());
+    // Retry after overlay animation completes
+    const timer = setTimeout(() => textareaRef.current?.focus(), 250);
+    return () => clearTimeout(timer);
+  }, [autoFocus]);
 
   const agent = agents.find((a) => a.name === agentName);
   const session = sessions.find((s) => s.clientId === clientId);
@@ -520,9 +523,9 @@ export function AgentChat({ agentName, context, onApplySpec, initialMessage, aut
                 send();
               }
             }}
-            placeholder={`Ask ${agent.name}...`}
-            className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:border-zinc-500 resize-none overflow-hidden"
-            disabled={isStreaming || !clientId}
+            placeholder={isStreaming ? "Thinking..." : !clientId ? "Connecting..." : `Ask ${agent.name}...`}
+            className={`flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:border-zinc-500 resize-none overflow-hidden ${isStreaming || !clientId ? "opacity-60" : ""}`}
+            readOnly={isStreaming || !clientId}
           />
           <button
             type="submit"
