@@ -135,15 +135,6 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
           if (existingSession) {
             setClientId(existingClientId);
             if (existingSession.sessionId) setLocalSessionId(existingSession.sessionId);
-            // Clean up incomplete assistant messages (from interrupted streams)
-            const msgs = existingSession.messages;
-            if (msgs.length > 0) {
-              const last = msgs[msgs.length - 1];
-              if (last.role === "assistant" && !last.content?.trim()) {
-                // Remove empty trailing assistant message
-                updateMessages(existingClientId, msgs.slice(0, -1));
-              }
-            }
             return;
           }
         }
@@ -392,17 +383,16 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
     return null;
   }, [messages, onApplySpec, isStreaming]);
 
-  // Reconnect to background stream on mount if there's an incomplete assistant message
+  // Always try to reconnect to a background stream on mount
+  // The SSE endpoint returns [DONE] immediately if no stream is active, so this is cheap
+  const reconnectedRef = useRef(false);
   useEffect(() => {
-    if (!clientId || isStreaming) return;
-    const msgs = messagesRef.current;
-    if (msgs.length > 0) {
-      const last = msgs[msgs.length - 1];
-      // If the last message is an empty/in-progress assistant message, try reconnecting
-      if (last.role === "assistant" && !last.content?.trim()) {
-        setIsStreaming(true);
-        connectToStream(clientId);
-      }
+    if (!clientId || isStreaming || reconnectedRef.current) return;
+    reconnectedRef.current = true;
+    // Only attempt if there are messages (session was used before)
+    if (messagesRef.current.length > 0) {
+      setIsStreaming(true);
+      connectToStream(clientId);
     }
   }, [clientId]); // Only run once when clientId is set
 
