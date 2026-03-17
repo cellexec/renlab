@@ -44,12 +44,14 @@ interface AgentChatProps {
   initialMessage?: string;
   /** Called once when the first message is sent (user or initial) */
   onFirstMessageSent?: (message: string) => void;
+  /** Link chat session to a specification ID (enables session persistence across page navigations) */
+  specificationId?: string;
   /** Auto-focus the input when the chat becomes ready */
   autoFocus?: boolean;
   className?: string;
 }
 
-export function AgentChat({ agentName, context, onApplySpec, applyLabel, initialMessage, onFirstMessageSent, autoFocus, className }: AgentChatProps) {
+export function AgentChat({ agentName, context, onApplySpec, applyLabel, initialMessage, onFirstMessageSent, specificationId, autoFocus, className }: AgentChatProps) {
   const { agents, loaded: agentsLoaded } = useAgentStore();
   const { activeProject } = useProjectContext();
   const {
@@ -118,15 +120,40 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
     scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight);
   }, [messages]);
 
-  // Auto-create session once agent is available
+  // Auto-create session (or resume existing one linked to this spec)
   useEffect(() => {
     if (!agentsLoaded || !sessionsLoaded || initializedRef.current || !agent) return;
     initializedRef.current = true;
 
+    // Check if there's an existing session linked to this specification
+    if (specificationId) {
+      try {
+        const map = JSON.parse(localStorage.getItem("spec-chat-sessions") ?? "{}");
+        const existingClientId = map[specificationId];
+        if (existingClientId) {
+          const existingSession = sessions.find((s) => s.clientId === existingClientId);
+          if (existingSession) {
+            setClientId(existingClientId);
+            // Restore sessionId if available
+            if (existingSession.sessionId) setLocalSessionId(existingSession.sessionId);
+            return;
+          }
+        }
+      } catch {}
+    }
+
     createSession(agent.id, agent.name, agent.model).then((cid) => {
       setClientId(cid);
+      // Persist the link between this spec and the session
+      if (specificationId) {
+        try {
+          const map = JSON.parse(localStorage.getItem("spec-chat-sessions") ?? "{}");
+          map[specificationId] = cid;
+          localStorage.setItem("spec-chat-sessions", JSON.stringify(map));
+        } catch {}
+      }
     });
-  }, [agentsLoaded, sessionsLoaded, agent, createSession]);
+  }, [agentsLoaded, sessionsLoaded, agent, createSession, specificationId, sessions]);
 
   const handleSessionIdReceived = useCallback(
     (id: string) => {

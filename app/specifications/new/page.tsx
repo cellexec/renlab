@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AgentChat } from "../../components/AgentChat";
 import { useSpecificationStore } from "../../hooks/useSpecificationStore";
 import { useProjectContext } from "../../components/ProjectContext";
+import { getSupabase } from "../../lib/supabase";
 import type { SpecificationType } from "../../specifications";
 
 /** Try to extract a title from "# Feature: Name" or "# Name" or "# UI Refactor: Name" */
@@ -26,7 +27,8 @@ export default function NewSpecificationPage() {
   const [saving, setSaving] = useState(false);
   const [initialMessage, setInitialMessage] = useState<string | undefined>();
   const [specType, setSpecType] = useState<SpecificationType>("feature");
-  const createdSpecIdRef = useRef<string | null>(null);
+  const [specId, setSpecId] = useState<string | null>(null);
+  const creatingRef = useRef(false);
 
   // Read pre-composed message from sessionStorage when arriving from review issues
   useEffect(() => {
@@ -38,44 +40,26 @@ export default function NewSpecificationPage() {
     }
   }, [searchParams]);
 
+  // Eagerly create the spec with "chat" status so the session can be linked immediately
+  useEffect(() => {
+    if (specId || creatingRef.current) return;
+    creatingRef.current = true;
+    createSpecification("New Specification", activeProjectId ?? undefined, specType).then(async (id) => {
+      await getSupabase().from("specifications").update({ status: "chat" }).eq("id", id);
+      setSpecId(id);
+    }).catch(() => { creatingRef.current = false; });
+  }, [createSpecification, activeProjectId, specType, specId]);
+
   const activeTypeConfig = SPEC_TYPES.find((t) => t.value === specType) ?? SPEC_TYPES[0];
 
-  // When the first message is sent, create the spec with "chat" status and redirect
-  const handleFirstMessage = useCallback(async (message: string) => {
-    if (createdSpecIdRef.current) return; // Already created
-    try {
-      // Use the message as a provisional title (first 60 chars)
-      const title = message.slice(0, 60).replace(/\n/g, " ").trim() || "New Specification";
-      const specId = await createSpecification(title, activeProjectId ?? undefined, specType);
-      createdSpecIdRef.current = specId;
-      // Set status to "chat" (createSpecification defaults to "draft")
-      const { getSupabase } = await import("../../lib/supabase");
-      await getSupabase().from("specifications").update({ status: "chat" }).eq("id", specId);
-      // Navigate to the spec page — it will auto-open chat
-      router.replace(`/specifications/${specId}`);
-    } catch (err) {
-      console.error("Failed to create spec on first message:", err);
-    }
-  }, [activeProjectId, specType, createSpecification, router]);
-
   const handleApplySpec = async (specContent: string) => {
-    if (saving) return;
+    if (saving || !specId) return;
     const specTitle = extractTitle(specContent) || "Untitled";
-    const specId = createdSpecIdRef.current;
     setSaving(true);
     try {
-      if (specId) {
-        // Spec already exists from first message — save version and update title/status
-        const { getSupabase } = await import("../../lib/supabase");
-        await getSupabase().from("specifications").update({ title: specTitle, status: "draft" }).eq("id", specId);
-        await saveVersion(specId, specContent, "Initial version");
-        router.push(`/specifications/${specId}`);
-      } else {
-        // Fallback: create spec now
-        const newId = await createSpecification(specTitle, activeProjectId ?? undefined, specType);
-        await saveVersion(newId, specContent, "Initial version");
-        router.push(`/specifications/${newId}`);
-      }
+      await getSupabase().from("specifications").update({ title: specTitle, status: "draft" }).eq("id", specId);
+      await saveVersion(specId, specContent, "Initial version");
+      router.push(`/specifications/${specId}`);
     } catch {
       setSaving(false);
     }
@@ -111,7 +95,6 @@ export default function NewSpecificationPage() {
 
   return (
     <div className="flex h-full flex-col text-zinc-100">
-      {/* Main content */}
       <div className="flex flex-1 min-h-0">
         <div className="flex flex-col flex-1">
           <div className={`flex-1 flex flex-col min-h-0 m-8 rounded-xl border-2 transition-colors duration-200 bg-zinc-950/60 overflow-hidden ${activeTypeConfig.borderColor}`}>
@@ -147,15 +130,19 @@ export default function NewSpecificationPage() {
                 <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
               </button>
             </div>
-            <AgentChat
-              agentName={specType === "ui-refactor" ? "Design Spec Expert" : "Feature Spec Expert"}
-              onApplySpec={handleApplySpec}
-              applyLabel="Save as Initial Version"
-              onFirstMessageSent={handleFirstMessage}
-              initialMessage={initialMessage}
-              autoFocus
-              className="flex-1"
-            />
+            {specId ? (
+              <AgentChat
+                agentName={specType === "ui-refactor" ? "Design Spec Expert" : "Feature Spec Expert"}
+                onApplySpec={handleApplySpec}
+                applyLabel="Save as Initial Version"
+                specificationId={specId}
+                initialMessage={initialMessage}
+                autoFocus
+                className="flex-1"
+              />
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-sm text-zinc-600">Initializing...</div>
+            )}
           </div>
         </div>
       </div>

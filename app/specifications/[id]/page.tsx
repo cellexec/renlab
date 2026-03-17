@@ -1845,6 +1845,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                   handleApplySpec(specContent);
                   setOverlayPanel(null);
                 }}
+                specificationId={id}
                 initialMessage={chatInitialMessage}
                 autoFocus
                 className="flex-1"
