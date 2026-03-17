@@ -36,6 +36,7 @@ const TERMINAL_COMMANDS = [
 ];
 
 const STATUS_CONFIG: Record<SpecificationStatus, { label: string; color: string; dotColor: string }> = {
+  chat:      { label: "Chat", color: "text-cyan-400", dotColor: "bg-cyan-400" },
   draft:     { label: "draft",     color: "text-zinc-400",    dotColor: "bg-zinc-400" },
   pipeline:  { label: "pipeline",  color: "text-emerald-400", dotColor: "bg-emerald-400" },
   failed:    { label: "failed",    color: "text-red-400",     dotColor: "bg-red-400" },

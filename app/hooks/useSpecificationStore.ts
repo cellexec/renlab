@@ -214,7 +214,7 @@ export function useSpecificationStore(projectId: string | null = null) {
     (id: string): boolean => {
       const spec = specifications.find((s) => s.id === id);
       if (!spec) return false;
-      return spec.status === "draft" || spec.status === "failed";
+      return spec.status === "chat" || spec.status === "draft" || spec.status === "failed";
     },
     [specifications]
   );

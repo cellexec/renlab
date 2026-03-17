@@ -18,6 +18,7 @@ import type { SpecificationStatus } from "../../../specifications";
 /* ------------------------------------------------------------------ */
 
 const STATUS_BADGE: Record<SpecificationStatus, { label: string; cls: string; dot: string }> = {
+  chat:      { label: "Chat",      dot: "bg-cyan-400", cls: "bg-cyan-400/10 text-cyan-300 animate-pulse" },
   draft:     { label: "Draft",     cls: "bg-zinc-400/10 text-zinc-400 border-white/[0.08]",           dot: "bg-zinc-400" },
   pipeline:  { label: "Pipeline",  cls: "bg-blue-400/10 text-blue-300 border-blue-400/20",            dot: "bg-blue-400" },
   failed:    { label: "Failed",    cls: "bg-red-400/10 text-red-300 border-red-400/20",               dot: "bg-red-400" },

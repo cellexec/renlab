@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AgentChat } from "../../components/AgentChat";
 import { useSpecificationStore } from "../../hooks/useSpecificationStore";
@@ -26,6 +26,7 @@ export default function NewSpecificationPage() {
   const [saving, setSaving] = useState(false);
   const [initialMessage, setInitialMessage] = useState<string | undefined>();
   const [specType, setSpecType] = useState<SpecificationType>("feature");
+  const createdSpecIdRef = useRef<string | null>(null);
 
   // Read pre-composed message from sessionStorage when arriving from review issues
   useEffect(() => {
@@ -39,14 +40,42 @@ export default function NewSpecificationPage() {
 
   const activeTypeConfig = SPEC_TYPES.find((t) => t.value === specType) ?? SPEC_TYPES[0];
 
+  // When the first message is sent, create the spec with "chat" status and redirect
+  const handleFirstMessage = useCallback(async (message: string) => {
+    if (createdSpecIdRef.current) return; // Already created
+    try {
+      // Use the message as a provisional title (first 60 chars)
+      const title = message.slice(0, 60).replace(/\n/g, " ").trim() || "New Specification";
+      const specId = await createSpecification(title, activeProjectId ?? undefined, specType);
+      createdSpecIdRef.current = specId;
+      // Set status to "chat" (createSpecification defaults to "draft")
+      const { getSupabase } = await import("../../lib/supabase");
+      await getSupabase().from("specifications").update({ status: "chat" }).eq("id", specId);
+      // Navigate to the spec page — it will auto-open chat
+      router.replace(`/specifications/${specId}`);
+    } catch (err) {
+      console.error("Failed to create spec on first message:", err);
+    }
+  }, [activeProjectId, specType, createSpecification, router]);
+
   const handleApplySpec = async (specContent: string) => {
     if (saving) return;
     const specTitle = extractTitle(specContent) || "Untitled";
+    const specId = createdSpecIdRef.current;
     setSaving(true);
     try {
-      const specId = await createSpecification(specTitle, activeProjectId ?? undefined, specType);
-      await saveVersion(specId, specContent, "Initial version");
-      router.push(`/specifications/${specId}`);
+      if (specId) {
+        // Spec already exists from first message — save version and update title/status
+        const { getSupabase } = await import("../../lib/supabase");
+        await getSupabase().from("specifications").update({ title: specTitle, status: "draft" }).eq("id", specId);
+        await saveVersion(specId, specContent, "Initial version");
+        router.push(`/specifications/${specId}`);
+      } else {
+        // Fallback: create spec now
+        const newId = await createSpecification(specTitle, activeProjectId ?? undefined, specType);
+        await saveVersion(newId, specContent, "Initial version");
+        router.push(`/specifications/${newId}`);
+      }
     } catch {
       setSaving(false);
     }
@@ -122,6 +151,7 @@ export default function NewSpecificationPage() {
               agentName={specType === "ui-refactor" ? "Design Spec Expert" : "Feature Spec Expert"}
               onApplySpec={handleApplySpec}
               applyLabel="Save as Initial Version"
+              onFirstMessageSent={handleFirstMessage}
               initialMessage={initialMessage}
               autoFocus
               className="flex-1"

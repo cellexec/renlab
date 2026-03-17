@@ -9,11 +9,12 @@ import type { Specification, SpecificationStatus } from "../specifications";
 
 // ── Status grouping ─────────────────────────────────────────────────────────
 
-type DisplayGroup = "pipeline" | "error" | "draft" | "done";
-const STATUS_ORDER: DisplayGroup[] = ["pipeline", "error", "draft", "done"];
+type DisplayGroup = "pipeline" | "chat" | "error" | "draft" | "done";
+const STATUS_ORDER: DisplayGroup[] = ["pipeline", "chat", "error", "draft", "done"];
 
 function toDisplayGroup(status: SpecificationStatus): DisplayGroup {
   if (status === "pipeline") return "pipeline";
+  if (status === "chat") return "chat";
   if (status === "draft") return "draft";
   if (status === "done") return "done";
   return "error"; // failed + cancelled
@@ -21,13 +22,15 @@ function toDisplayGroup(status: SpecificationStatus): DisplayGroup {
 
 const GROUP_CONFIG: Record<DisplayGroup, { label: string; dot: string }> = {
   pipeline: { label: "In Pipeline", dot: "bg-indigo-500" },
+  chat: { label: "In Chat", dot: "bg-cyan-500" },
   error: { label: "Error", dot: "bg-red-500" },
   draft: { label: "Draft", dot: "bg-zinc-500" },
   done: { label: "Done", dot: "bg-emerald-500" },
 };
 
 const STATUS_BADGE: Record<SpecificationStatus, { dot: string; label: string; bg: string; text: string }> = {
-  draft:     { dot: "bg-zinc-500",                 label: "Draft",     bg: "bg-zinc-500/10",    text: "text-zinc-400" },
+  chat:      { dot: "bg-cyan-500 animate-pulse",    label: "Chat",      bg: "bg-cyan-500/10",    text: "text-cyan-400" },
+  draft:     { dot: "bg-zinc-500",                  label: "Draft",     bg: "bg-zinc-500/10",    text: "text-zinc-400" },
   pipeline:  { dot: "bg-indigo-500 animate-pulse",  label: "Pipeline",  bg: "bg-indigo-500/10",  text: "text-indigo-400" },
   done:      { dot: "bg-emerald-500",               label: "Done",      bg: "bg-emerald-500/10", text: "text-emerald-400" },
   failed:    { dot: "bg-red-500",                   label: "Failed",    bg: "bg-red-500/10",     text: "text-red-400" },
@@ -139,7 +142,7 @@ export default function SpecificationsPage() {
     const specs = query
       ? specifications.filter((s) => fuzzyMatch(s.title, query))
       : specifications;
-    const counts: Record<FilterTab, number> = { pipeline: 0, error: 0, draft: 0, done: 0 };
+    const counts: Record<FilterTab, number> = { pipeline: 0, chat: 0, error: 0, draft: 0, done: 0 };
     for (const s of specs) counts[toDisplayGroup(s.status)]++;
     return counts;
   }, [specifications, query]);

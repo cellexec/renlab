@@ -61,6 +61,7 @@ const zenKeyframes = `
 
 function statusDotColor(status: SpecificationStatus): string {
   switch (status) {
+    case "chat": return "bg-cyan-400 animate-pulse";
     case "draft": return "bg-emerald-400";
     case "pipeline": return "bg-blue-400 animate-pulse";
     case "failed": return "bg-red-400";

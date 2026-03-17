@@ -50,6 +50,7 @@ const dashKeyframes = `
 /* ------------------------------------------------------------------ */
 
 const STATUS_STYLE: Record<SpecificationStatus, { label: string; dot: string; bg: string; text: string; border: string }> = {
+  chat:      { label: "Chat", dot: "bg-cyan-400", bg: "bg-cyan-400/10", text: "text-cyan-400", border: "border-cyan-400/20" },
   draft:     { label: "Draft",     dot: "bg-zinc-400",    bg: "bg-zinc-400/10",    text: "text-zinc-400",    border: "border-zinc-400/20" },
   pipeline:  { label: "Pipeline",  dot: "bg-blue-400",    bg: "bg-blue-400/10",    text: "text-blue-300",    border: "border-blue-400/20" },
   failed:    { label: "Failed",    dot: "bg-red-400",     bg: "bg-red-400/10",     text: "text-red-300",     border: "border-red-400/20" },

@@ -37,6 +37,7 @@ const COMMANDS = [
 ];
 
 const STATUS_STYLES: Record<SpecificationStatus, { label: string; dot: string; text: string }> = {
+  chat:      { label: "CHAT",      dot: "bg-cyan-400", text: "text-cyan-400" },
   draft:     { label: "DRAFT",     dot: "bg-zinc-400",    text: "text-zinc-400" },
   pipeline:  { label: "PIPELINE",  dot: "bg-blue-400",    text: "text-blue-400" },
   failed:    { label: "FAILED",    dot: "bg-red-400",     text: "text-red-400" },

@@ -1,4 +1,4 @@
-export type SpecificationStatus = "draft" | "pipeline" | "failed" | "cancelled" | "done";
+export type SpecificationStatus = "chat" | "draft" | "pipeline" | "failed" | "cancelled" | "done";
 export type SpecificationType = "feature" | "ui-refactor";
 
 export interface Specification {

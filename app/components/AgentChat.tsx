@@ -42,12 +42,14 @@ interface AgentChatProps {
   applyLabel?: string;
   /** Message to auto-send once the chat session is ready */
   initialMessage?: string;
+  /** Called once when the first message is sent (user or initial) */
+  onFirstMessageSent?: (message: string) => void;
   /** Auto-focus the input when the chat becomes ready */
   autoFocus?: boolean;
   className?: string;
 }
 
-export function AgentChat({ agentName, context, onApplySpec, applyLabel, initialMessage, autoFocus, className }: AgentChatProps) {
+export function AgentChat({ agentName, context, onApplySpec, applyLabel, initialMessage, onFirstMessageSent, autoFocus, className }: AgentChatProps) {
   const { agents, loaded: agentsLoaded } = useAgentStore();
   const { activeProject } = useProjectContext();
   const {
@@ -68,6 +70,7 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
   const messagesRef = useRef<Message[]>([]);
   const initializedRef = useRef(false);
   const initialMessageSentRef = useRef(false);
+  const firstMessageFiredRef = useRef(false);
   const contextRef = useRef(context);
 
   // Keep context ref in sync
@@ -136,6 +139,12 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
   const send = useCallback(async (overrideText?: string) => {
     const text = (overrideText ?? input).trim();
     if (!text || isStreaming || !clientId || !agent) return;
+
+    // Fire first message callback
+    if (!firstMessageFiredRef.current && onFirstMessageSent) {
+      firstMessageFiredRef.current = true;
+      onFirstMessageSent(text);
+    }
 
     if (!overrideText) setInput("");
     setIsStreaming(true);
@@ -337,7 +346,7 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
     } finally {
       setIsStreaming(false);
     }
-  }, [input, isStreaming, clientId, agent, sessionId, addMessage, updateMessages, handleSessionIdReceived]);
+  }, [input, isStreaming, clientId, agent, sessionId, addMessage, updateMessages, handleSessionIdReceived, onFirstMessageSent]);
 
   // Find the last applyable assistant message
   const lastApplyableMsg = useMemo(() => {
