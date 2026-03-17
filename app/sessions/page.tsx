@@ -12,18 +12,12 @@ export default function SessionsPage() {
   }, []);
 
   return (
-    <div className={`h-full text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
-      <div className="h-full overflow-auto">
+    <div className={`h-full flex flex-col text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
+      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 py-4">
+        <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">Sessions</h1>
+      </div>
+      <div className="flex-1 overflow-auto">
         <div className="max-w-full px-6 py-6">
-          {/* Breadcrumb + header */}
-          <div className="mb-6 animate-fade-in-up stagger-1">
-            <div className="flex items-center gap-1.5 text-[12px] text-zinc-500 mb-2">
-              <span className="hover:text-zinc-300 cursor-pointer transition-colors">Home</span>
-              <span>/</span>
-              <span className="text-zinc-300">Sessions</span>
-            </div>
-            <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">Sessions</h1>
-          </div>
 
           <div className="flex flex-col items-center justify-center py-20 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
             <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-2xl p-12 text-center">

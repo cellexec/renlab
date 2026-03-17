@@ -61,7 +61,7 @@ export default function NewSpecificationPage() {
   return (
     <div className="flex h-full flex-col text-zinc-100">
       {/* Header */}
-      <header className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
+      <header className="flex items-center justify-between border-b border-white/[0.06] bg-zinc-950 px-8 py-5">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">New Specification</h1>
           <p className="mt-1 text-sm text-zinc-500">
@@ -123,7 +123,7 @@ export default function NewSpecificationPage() {
         {/* Chat panel */}
         <div
           className={`flex flex-col transition-all duration-300 ${
-            specReady ? "w-1/2 border-r border-zinc-800" : "flex-1"
+            specReady ? "w-1/2 border-r border-white/[0.06]" : "flex-1"
           }`}
         >
           <AgentChat
@@ -139,7 +139,7 @@ export default function NewSpecificationPage() {
         {specReady && (
           <div className="w-1/2 flex flex-col overflow-hidden">
             {/* Title input */}
-            <div className="border-b border-zinc-800 px-6 py-4">
+            <div className="border-b border-white/[0.06] px-6 py-4">
               <label className="block text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-2">
                 Specification Title
               </label>
@@ -161,7 +161,7 @@ export default function NewSpecificationPage() {
             </div>
 
             {/* Save footer */}
-            <div className="border-t border-zinc-800 px-6 py-4 flex items-center justify-between">
+            <div className="border-t border-white/[0.06] px-6 py-4 flex items-center justify-between">
               <p className="text-xs text-zinc-500">
                 Continue chatting to refine, or save when ready
               </p>

@@ -115,23 +115,16 @@ export default function UsagePage() {
   );
 
   return (
-    <div className={`h-full text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
-      <div className="h-full overflow-auto">
+    <div className={`h-full flex flex-col text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
+      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 py-4">
+        <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">Usage</h1>
+        <p className="mt-0.5 text-[12px] text-zinc-500">
+          Claude Code usage statistics &middot; since{" "}
+          {formatDate(stats.firstSessionDate)}
+        </p>
+      </div>
+      <div className="flex-1 overflow-auto">
         <div className="max-w-full px-6 py-6">
-          {/* Breadcrumb + header */}
-          <div className="mb-6 animate-fade-in-up stagger-1">
-            <div className="flex items-center gap-1.5 text-[12px] text-zinc-500 mb-2">
-              <span className="hover:text-zinc-300 cursor-pointer transition-colors">Home</span>
-              <span>/</span>
-              <span className="text-zinc-300">Usage</span>
-            </div>
-            <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">Usage</h1>
-            <p className="mt-1 text-[13px] text-zinc-500">
-              Claude Code usage statistics &middot; since{" "}
-              {formatDate(stats.firstSessionDate)}
-            </p>
-          </div>
-
           <div className="space-y-6">
             {/* Summary cards */}
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

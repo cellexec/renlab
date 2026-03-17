@@ -16,46 +16,37 @@ export default function ProjectsPage() {
   }, []);
 
   return (
-    <div className={`h-full text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
-      <div className="h-full overflow-auto">
-        <div className="max-w-full px-6 py-6">
-          {/* Breadcrumb + header */}
-          <div className="mb-6 animate-fade-in-up stagger-1">
-            <div className="flex items-center gap-1.5 text-[12px] text-zinc-500 mb-2">
-              <Link href="/" className="hover:text-zinc-300 transition-colors">Home</Link>
-              <span>/</span>
-              <span className="text-zinc-300">Projects</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">Projects</h1>
-                <p className="mt-1 text-[13px] text-zinc-500">
-                  Manage your projects
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/projects/import-monorepo"
-                  className="flex items-center gap-2 backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] hover:text-zinc-200 rounded-lg px-3.5 py-2 text-[13px] font-medium text-zinc-400 transition-all duration-200"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                  </svg>
-                  Import Monorepo
-                </Link>
-                <Link
-                  href="/projects/new"
-                  className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 rounded-lg px-3.5 py-2 text-[13px] font-medium text-white transition-all duration-200"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add project
-                </Link>
-              </div>
-            </div>
+    <div className={`h-full flex flex-col text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
+      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">Projects</h1>
+            <p className="mt-0.5 text-[12px] text-zinc-500">Manage your projects</p>
           </div>
-
+          <div className="flex items-center gap-2">
+            <Link
+              href="/projects/import-monorepo"
+              className="flex items-center gap-2 backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] hover:text-zinc-200 rounded-lg px-3.5 py-2 text-[13px] font-medium text-zinc-400 transition-all duration-200"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              Import Monorepo
+            </Link>
+            <Link
+              href="/projects/new"
+              className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 rounded-lg px-3.5 py-2 text-[13px] font-medium text-white transition-all duration-200"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add project
+            </Link>
+          </div>
+        </div>
+      </div>
+      <div className="flex-1 overflow-auto">
+        <div className="max-w-full px-6 py-6">
           {/* Project list */}
           {projects.length === 0 ? (
             <div className="animate-fade-in-up" style={{ animationDelay: "120ms" }}>

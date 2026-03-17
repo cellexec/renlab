@@ -602,7 +602,7 @@ export default function PipelinePageShell({
 
       <div className="flex h-full flex-col text-zinc-100">
         {/* Header */}
-        <header className="sticky top-0 z-20 flex flex-wrap gap-3 items-center justify-between border-b border-white/[0.04] bg-zinc-950/80 px-4 md:px-8 py-4 backdrop-blur-xl shrink-0">
+        <header className="sticky top-0 z-20 flex flex-wrap gap-3 items-center justify-between border-b border-white/[0.06] bg-zinc-950 px-4 md:px-8 py-4 shrink-0">
           <div className="flex items-center gap-4">
             <button onClick={() => router.push("/pipelines")} className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-600 transition-all duration-200 hover:bg-white/[0.04] hover:text-zinc-300">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>

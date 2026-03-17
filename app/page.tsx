@@ -1285,19 +1285,19 @@ export default function DashboardPage() {
   // =========================================================================
 
   return (
-    <div className={`h-full text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
-      <div className="h-full overflow-auto">
-        <div className="max-w-full px-6 py-6">
-          {/* Header */}
-          <div className="mb-6 animate-fade-in-up" style={{ animationDelay: "0ms" }}>
-            <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">Dashboard</h1>
-            {!loading && activeProject && (
-              <div className="flex items-center gap-2 mt-1 text-[12px] text-zinc-500">
-                <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Auto-refreshing
-              </div>
-            )}
+    <div className={`h-full flex flex-col text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
+      {/* Header */}
+      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 py-4">
+        <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">Dashboard</h1>
+        {!loading && activeProject && (
+          <div className="flex items-center gap-2 mt-0.5 text-[12px] text-zinc-500">
+            <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Auto-refreshing
           </div>
+        )}
+      </div>
+      <div className="flex-1 overflow-auto">
+        <div className="max-w-full px-6 py-6">
 
           {/* Tab bar */}
           {activeProject && (

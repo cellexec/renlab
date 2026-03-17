@@ -43,16 +43,11 @@ export default function DatabasePage() {
   return (
     <div className={`flex h-full flex-col text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
       {/* Header */}
-      <div className="px-6 py-6 animate-fade-in-up stagger-1">
+      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-1.5 text-[12px] text-zinc-500 mb-2">
-              <span className="hover:text-zinc-300 cursor-pointer transition-colors">Home</span>
-              <span>/</span>
-              <span className="text-zinc-300">Database</span>
-            </div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">Database</h1>
+              <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">Database</h1>
               {activeProject && (
                 <>
                   <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border backdrop-blur-md ${cfg.bg} ${cfg.text} border-white/[0.06]`}>

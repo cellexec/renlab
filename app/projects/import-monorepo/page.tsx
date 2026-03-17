@@ -433,7 +433,7 @@ export default function ImportMonorepoPage() {
     return (
       <div className="flex h-full flex-col text-zinc-100">
         {/* Header */}
-        <div className="shrink-0 border-b border-zinc-800 px-6 py-4">
+        <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-lg font-semibold text-zinc-100 tracking-tight">Import Project</h1>
@@ -454,7 +454,7 @@ export default function ImportMonorepoPage() {
         </div>
 
         {/* Search bar */}
-        <div className="shrink-0 border-b border-zinc-800 px-6 py-2.5">
+        <div className="shrink-0 border-b border-white/[0.06] px-4 py-2.5">
           <div className="flex items-center gap-2 max-w-xl">
             {history.length > 0 && (
               <button
@@ -507,7 +507,7 @@ export default function ImportMonorepoPage() {
                   onClick={() => { setSelectedIndex(i); selectEntry(dir); }}
                   onDoubleClick={() => navigateInto(dir.path)}
                   onMouseMove={() => { if (selectedIndex !== i) setSelectedIndex(i); }}
-                  className={`border-b border-zinc-800/50 px-6 py-3 transition-colors cursor-pointer ${
+                  className={`border-b border-white/[0.04] px-4 py-2.5 transition-colors cursor-pointer ${
                     isSelected
                       ? "bg-violet-500/[0.06] border-l-2 border-l-violet-500/60"
                       : isHighlighted
@@ -549,7 +549,7 @@ export default function ImportMonorepoPage() {
         </div>
 
         {/* Bottom hints */}
-        <div className="shrink-0 border-t border-zinc-800 px-6 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+        <div className="shrink-0 border-t border-white/[0.06] bg-zinc-950 px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
           <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd> navigate</span>
           <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd> {selectedPath ? "import" : "open"}</span>
           <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Space</kbd> select</span>
@@ -566,7 +566,7 @@ export default function ImportMonorepoPage() {
     return (
       <div className="flex h-full flex-col text-zinc-100">
         {/* Header */}
-        <div className="shrink-0 border-b border-zinc-800 px-6 py-4">
+        <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
               <button
@@ -612,7 +612,7 @@ export default function ImportMonorepoPage() {
         </div>
 
         {/* Search bar */}
-        <div className="shrink-0 border-b border-zinc-800 px-6 py-2.5">
+        <div className="shrink-0 border-b border-white/[0.06] px-4 py-2.5">
           <div className="flex items-center gap-2 max-w-xl">
             <svg className="h-4 w-4 shrink-0 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
@@ -654,7 +654,7 @@ export default function ImportMonorepoPage() {
                   key={app.path}
                   onClick={() => { setAppIndex(i); if (!alreadyImported) toggleApp(app.path); }}
                   onMouseMove={() => { if (appIndex !== i) setAppIndex(i); }}
-                  className={`border-b border-zinc-800/50 px-6 py-3 transition-colors cursor-pointer ${
+                  className={`border-b border-white/[0.04] px-4 py-2.5 transition-colors cursor-pointer ${
                     alreadyImported ? "opacity-40" : ""
                   } ${
                     isHighlighted
@@ -723,7 +723,7 @@ export default function ImportMonorepoPage() {
         )}
 
         {/* Bottom hints */}
-        <div className="shrink-0 border-t border-zinc-800 px-6 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+        <div className="shrink-0 border-t border-white/[0.06] bg-zinc-950 px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
           <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd> navigate</span>
           <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Space</kbd> toggle</span>
           {appSelected.size > 0 && <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd> import</span>}

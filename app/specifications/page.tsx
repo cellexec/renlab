@@ -292,7 +292,7 @@ export default function SpecificationsPage() {
       <div className="flex-1 overflow-y-auto min-h-0">
 
       {/* 1. Header */}
-      <div className="px-6 py-5">
+      <div className="px-6 py-5 bg-zinc-950 border-b border-white/[0.06]">
         <div className="flex items-baseline gap-2.5">
           <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">Specifications</h1>
           <span className="text-sm text-zinc-500">
@@ -346,7 +346,7 @@ export default function SpecificationsPage() {
       </div>
 
       {/* 3. Search + list container */}
-      <div className="mx-6 mb-4 border border-white/[0.06] rounded-xl overflow-hidden">
+      <div className="mx-5 mb-5 rounded-xl border-2 border-white/[0.08] bg-zinc-950/60 overflow-hidden">
         {/* Search bar */}
         <div className="shrink-0 border-b border-white/[0.06] px-5 py-3">
           <div className="flex items-center gap-2.5">
@@ -396,7 +396,7 @@ export default function SpecificationsPage() {
             return (
               <div key={group}>
                 {/* Sticky section header */}
-                <div className="sticky top-0 z-10 bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-800/50 px-5 py-2.5">
+                <div className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur-sm border-b border-white/[0.04] px-4 py-1.5">
                   <div className="flex items-center gap-2">
                     <span className={`h-2.5 w-2.5 rounded-full ${cfg.dot} ${group === "pipeline" ? "animate-pulse" : ""}`} />
                     <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{cfg.label}</span>
@@ -423,7 +423,7 @@ export default function SpecificationsPage() {
                       onMouseMove={() => {
                         if (mouseActive && selectedIndex !== idx) setSelectedIndex(idx);
                       }}
-                      className={`border-b border-zinc-800/50 px-5 py-3.5 transition-colors cursor-pointer ${
+                      className={`border-b border-white/[0.04] px-4 py-2.5 transition-colors cursor-pointer ${
                         isDeleting
                           ? "bg-red-500/[0.06] border-l-2 border-l-red-500/60"
                           : isSelected
@@ -482,7 +482,7 @@ export default function SpecificationsPage() {
       </div>{/* end scroll area */}
 
       {/* 5. Bottom hints */}
-      <div className="shrink-0 border-t border-zinc-800 px-6 py-2.5 flex items-center gap-5 text-xs text-zinc-600">
+      <div className="shrink-0 border-t border-white/[0.06] bg-zinc-950 px-5 py-2 flex items-center gap-5 text-xs text-zinc-600">
         <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">j</kbd> <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">k</kbd> navigate</span>
         <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">&larr;</kbd> <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">&rarr;</kbd> filter</span>
         <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">Enter</kbd> open</span>

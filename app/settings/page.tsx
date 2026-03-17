@@ -429,7 +429,7 @@ export default function SettingsPage() {
   return (
     <div className={`flex h-full flex-col text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
       {/* Header */}
-      <div className="shrink-0 border-b border-zinc-800 px-6 py-4">
+      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 py-4">
         <h1 className="text-lg font-semibold text-zinc-100 tracking-tight">Settings</h1>
         <p className="mt-0.5 text-[12px] text-zinc-500">
           {activeProject ? activeProject.title : "No project selected"}
@@ -437,7 +437,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab group */}
-      <div className="shrink-0 border-b border-zinc-800 px-6 py-2.5">
+      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-5 py-2.5">
         <div className="flex items-center gap-3 mb-1.5">
           <span className="text-xs text-zinc-600 flex items-center gap-1">
             <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">&larr;</kbd>
@@ -472,38 +472,41 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Search bar */}
-      <div className="shrink-0 border-b border-zinc-800 px-6 py-2.5">
-        <div className="flex items-center gap-2 max-w-xl">
-          <svg className="h-4 w-4 shrink-0 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-          </svg>
-          <input
-            ref={searchRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => setSearchOpen(true)}
-            onBlur={() => setSearchOpen(false)}
-            placeholder="Filter settings…"
-            className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-600 outline-none"
-          />
-          {!searchOpen && (
-            <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">/</kbd>
-          )}
-        </div>
-      </div>
+      {/* Content area with boxed panel */}
+      <div className="flex-1 min-h-0 overflow-hidden p-5">
+        <div className="flex flex-col h-full rounded-xl border-2 border-white/[0.08] bg-zinc-950/60 overflow-hidden">
+          {/* Search bar */}
+          <div className="shrink-0 border-b border-white/[0.06] px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <svg className="h-4 w-4 shrink-0 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
+              {!searchOpen && !searchQuery && (
+                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">/</kbd>
+              )}
+              <input
+                ref={searchRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setSearchOpen(true)}
+                onBlur={() => setSearchOpen(false)}
+                placeholder="Filter settings…"
+                className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-600 outline-none"
+              />
+            </div>
+          </div>
 
-      {/* Settings list */}
-      <div ref={listRef} className="flex-1 overflow-y-auto">
-        {filtered.length === 0 ? (
-          <div className="py-16 text-center text-sm text-zinc-600">No matching settings</div>
-        ) : (
-          Array.from(sections.entries()).map(([section, items]) => (
-            <div key={section}>
-              <div className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur-sm border-b border-zinc-800/50 px-6 py-2">
-                <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">{section}</span>
-              </div>
+          {/* Settings list */}
+          <div ref={listRef} className="flex-1 overflow-y-auto min-h-0" style={{ scrollPaddingTop: 28 }}>
+            {filtered.length === 0 ? (
+              <div className="py-16 text-center text-sm text-zinc-600">No matching settings</div>
+            ) : (
+              Array.from(sections.entries()).map(([section, items]) => (
+                <div key={section}>
+                  <div className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur-sm border-b border-white/[0.04] px-4 py-1.5">
+                    <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">{section}</span>
+                  </div>
               {items.map((item) => {
                 const isSelected = item.id === selectedId && !editingId && !searchOpen;
                 const isEditing = item.id === editingId;
@@ -514,7 +517,7 @@ export default function SettingsPage() {
                       const idx = filtered.findIndex((f) => f.id === item.id);
                       if (idx >= 0) setSelectedIndex(idx);
                     }}
-                    className={`border-b border-zinc-800/50 px-6 py-4 transition-colors cursor-pointer ${
+                    className={`border-b border-white/[0.04] px-4 py-2.5 transition-colors cursor-pointer ${
                       isEditing
                         ? "bg-amber-500/[0.06] border-l-2 border-l-amber-500/60"
                         : isSelected
@@ -551,16 +554,18 @@ export default function SettingsPage() {
               })}
             </div>
           ))
-        )}
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Bottom hints bar */}
-      <div className="shrink-0 border-t border-zinc-800 px-6 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&larr;</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">&rarr;</kbd> tab</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd> navigate</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd> edit</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">/</kbd> search</span>
-        {hasChanges && <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd> save</span>}
+      <div className="shrink-0 border-t border-white/[0.06] bg-zinc-950 px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">&larr;</kbd> <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">&rarr;</kbd> tab</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">j</kbd> <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">k</kbd> navigate</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Enter</kbd> edit</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">/</kbd> search</span>
+        {hasChanges && <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Enter</kbd> save</span>}
       </div>
 
       {/* Sticky save bar */}

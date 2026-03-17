@@ -207,7 +207,7 @@ export default function ProjectSelectionPage() {
   return (
     <div className="flex h-full flex-col text-zinc-100">
       {/* Header */}
-      <div className="shrink-0 border-b border-zinc-800 px-6 py-4">
+      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-zinc-100 tracking-tight">Switch Project</h1>
@@ -229,30 +229,33 @@ export default function ProjectSelectionPage() {
         </div>
       </div>
 
-      {/* Search bar */}
-      <div className="shrink-0 border-b border-zinc-800 px-6 py-2.5">
-        <div className="flex items-center gap-2 max-w-xl">
-          <svg className="h-4 w-4 shrink-0 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-          </svg>
-          <input
-            ref={searchRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            placeholder="Filter projects…"
-            className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-600 outline-none"
-          />
-          {!searchFocused && (
-            <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">/</kbd>
-          )}
-        </div>
-      </div>
+      {/* Content area with boxed panel */}
+      <div className="flex-1 min-h-0 overflow-hidden p-5">
+        <div className="flex flex-col h-full rounded-xl border-2 border-white/[0.08] bg-zinc-950/60 overflow-hidden">
+          {/* Search bar */}
+          <div className="shrink-0 border-b border-white/[0.06] px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <svg className="h-4 w-4 shrink-0 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
+              {!searchFocused && !query && (
+                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">/</kbd>
+              )}
+              <input
+                ref={searchRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                placeholder="Filter projects…"
+                className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-600 outline-none"
+              />
+            </div>
+          </div>
 
-      {/* Project list */}
-      <div ref={listRef} className="flex-1 overflow-y-auto">
+          {/* Project list */}
+          <div ref={listRef} className="flex-1 overflow-y-auto min-h-0">
         {filtered.length === 0 ? (
           <div className="py-16 text-center text-sm text-zinc-600">No matching projects</div>
         ) : (
@@ -264,7 +267,7 @@ export default function ProjectSelectionPage() {
                 key={p.id}
                 onClick={() => selectAndGo(p.id)}
                 onMouseMove={() => { if (mouseActive && selectedIndex !== i) { setSelectedIndex(i); setUserMoved(true); } }}
-                className={`border-b border-zinc-800/50 px-6 py-4 transition-colors cursor-pointer ${
+                className={`border-b border-white/[0.04] px-4 py-3 transition-colors cursor-pointer ${
                   isSelected
                     ? "bg-violet-500/[0.04] border-l-2 border-l-violet-500/60"
                     : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
@@ -291,16 +294,18 @@ export default function ProjectSelectionPage() {
               </div>
             );
           })
-        )}
+          )}
+        </div>
+        </div>
       </div>
 
       {/* Bottom hints bar */}
-      <div className="shrink-0 border-t border-zinc-800 px-6 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd> navigate</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd> select</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">/</kbd> search</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">i</kbd> import</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Esc</kbd> back</span>
+      <div className="shrink-0 border-t border-white/[0.06] bg-zinc-950 px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">j</kbd> <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">k</kbd> navigate</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Enter</kbd> select</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">/</kbd> search</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">i</kbd> import</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd> back</span>
       </div>
     </div>
   );

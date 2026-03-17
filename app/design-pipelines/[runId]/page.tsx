@@ -411,7 +411,7 @@ export default function DesignPipelineDetailPage({ params }: { params: Promise<{
 
       <div className="flex h-full flex-col text-zinc-100">
         {/* ---- Sticky Header ---- */}
-        <header className="sticky top-0 z-20 flex flex-wrap gap-3 items-center justify-between border-b border-white/[0.04] bg-zinc-950/80 px-4 md:px-8 py-4 backdrop-blur-xl shrink-0">
+        <header className="sticky top-0 z-20 flex flex-wrap gap-3 items-center justify-between border-b border-white/[0.06] bg-zinc-950 px-4 md:px-8 py-4 shrink-0">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push("/pipelines")}

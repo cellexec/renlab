@@ -405,7 +405,7 @@ export default function LocalDevPage() {
   return (
     <div className={`flex h-full flex-col text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
       {/* Header */}
-      <div className="shrink-0 border-b border-zinc-800 px-6 py-4">
+      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-zinc-100 tracking-tight">Local Development</h1>
@@ -439,32 +439,34 @@ export default function LocalDevPage() {
         </div>
       </div>
 
-      {/* Search bar */}
-      <div className="shrink-0 border-b border-zinc-800 px-6 py-2.5">
-        <div className="flex items-center gap-2 max-w-xl">
-          <svg className="h-4 w-4 shrink-0 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-          </svg>
-          <input
-            ref={searchRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            placeholder="Filter actions…"
-            className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-600 outline-none"
-          />
-          {!searchFocused && (
-            <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">/</kbd>
-          )}
-        </div>
-      </div>
-
       {/* Main content — split: actions list + log viewer */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Actions list */}
-        <div ref={listRef} className="w-80 shrink-0 overflow-y-auto border-r border-zinc-800">
+      <div className="flex flex-1 min-h-0 overflow-hidden p-5 gap-5">
+        {/* Actions list box */}
+        <div className="w-80 shrink-0 flex flex-col min-h-0 rounded-xl border-2 border-white/[0.08] bg-zinc-950/60 overflow-hidden">
+          {/* Search bar */}
+          <div className="shrink-0 border-b border-white/[0.06] px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <svg className="h-4 w-4 shrink-0 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
+              {!searchFocused && !searchQuery && (
+                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">/</kbd>
+              )}
+              <input
+                ref={searchRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                placeholder="Filter actions…"
+                className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-600 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Actions list */}
+          <div ref={listRef} className="flex-1 overflow-y-auto min-h-0" style={{ scrollPaddingTop: 28 }}>
           {!activeProject ? (
             <div className="py-16 text-center text-sm text-zinc-600 px-4">Select a project to manage</div>
           ) : filtered.length === 0 ? (
@@ -472,7 +474,7 @@ export default function LocalDevPage() {
           ) : (
             Array.from(sections.entries()).map(([section, items]) => (
               <div key={section}>
-                <div className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur-sm border-b border-zinc-800/50 px-4 py-2">
+                <div className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur-sm border-b border-white/[0.04] px-4 py-1.5">
                   <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">{section}</span>
                 </div>
                 {items.map((item) => {
@@ -489,7 +491,7 @@ export default function LocalDevPage() {
                         const idx = filtered.findIndex((f) => f.id === item.id);
                         if (idx >= 0 && idx !== selectedIndex) setSelectedIndex(idx);
                       }}
-                      className={`px-4 py-3 transition-colors cursor-pointer border-b border-zinc-800/50 ${
+                      className={`px-4 py-3 transition-colors cursor-pointer border-b border-white/[0.04] ${
                         item.disabled ? "opacity-40" : ""
                       } ${
                         isSelected
@@ -521,11 +523,12 @@ export default function LocalDevPage() {
             ))
           )}
         </div>
+        </div>
 
-        {/* Log viewer */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Log viewer box */}
+        <div className="flex-1 flex flex-col min-h-0 rounded-xl border-2 border-white/[0.08] bg-zinc-950/60 overflow-hidden">
           {/* Log source tabs */}
-          <div className="shrink-0 flex items-center gap-1 border-b border-zinc-800 px-4 py-2">
+          <div className="shrink-0 flex items-center gap-1 border-b border-white/[0.06] px-4 py-2">
             <button
               tabIndex={-1}
               onClick={() => setLogSource("server")}
@@ -553,11 +556,11 @@ export default function LocalDevPage() {
       </div>
 
       {/* Bottom hints */}
-      <div className="shrink-0 border-t border-zinc-800 px-6 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd> <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd> navigate</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Enter</kbd> execute</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">/</kbd> search</span>
-        <span><kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">l</kbd> toggle logs</span>
+      <div className="shrink-0 border-t border-white/[0.06] bg-zinc-950 px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">j</kbd> <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">k</kbd> navigate</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Enter</kbd> execute</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">/</kbd> search</span>
+        <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">l</kbd> toggle logs</span>
       </div>
     </div>
   );
