@@ -94,40 +94,14 @@ export default function NewSpecificationPage() {
 
   return (
     <div className="flex h-full flex-col text-zinc-100">
-      {/* Header */}
-      <header className="flex items-center justify-between border-b border-white/[0.06] bg-zinc-950 px-6 py-3 shrink-0">
-        <h1 className="text-lg font-semibold tracking-tight">New Specification</h1>
-        <div className="flex items-center gap-3">
-          {specReady && (
-            <button
-              type="button"
-              tabIndex={-1}
-              onClick={handleSave}
-              disabled={!title.trim() || saving}
-              className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? "Saving..." : "Create Specification"}
-            </button>
-          )}
-          <button
-            type="button"
-            tabIndex={-1}
-            onClick={() => router.back()}
-            className="flex items-center gap-2 rounded-lg border border-zinc-800 px-3 py-1.5 text-sm text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
-          >
-            Cancel
-            <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
-          </button>
-        </div>
-      </header>
-
       {/* Main content */}
       <div className="flex flex-1 min-h-0">
         {/* Chat in boxed panel */}
         <div className={`flex flex-col transition-all duration-300 ${specReady ? "w-1/2" : "flex-1"}`}>
           <div className={`flex-1 flex flex-col min-h-0 m-8 ${specReady ? "mr-4" : ""} rounded-xl border-2 transition-colors duration-200 bg-zinc-950/60 overflow-hidden ${activeTypeConfig.borderColor}`}>
-            {/* Type selector inside box */}
-            <div className="shrink-0 flex items-center gap-2 border-b border-white/[0.06] px-4 py-2">
+            {/* Title + type selector + actions */}
+            <div className="shrink-0 flex items-center gap-3 border-b border-white/[0.06] px-4 py-2.5">
+              <span className="text-sm font-semibold text-zinc-200">New Spec</span>
               <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-lg p-0.5 inline-flex gap-0.5">
                 {SPEC_TYPES.map((type) => (
                   <button
@@ -135,7 +109,7 @@ export default function NewSpecificationPage() {
                     type="button"
                     tabIndex={-1}
                     onClick={() => setSpecType(type.value)}
-                    className={`inline-flex items-center px-3 py-1.5 rounded-md text-[12px] font-medium transition-all duration-200 ${
+                    className={`inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-200 ${
                       specType === type.value
                         ? `bg-white/[0.06] ${type.color}`
                         : "text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300"
@@ -146,6 +120,26 @@ export default function NewSpecificationPage() {
                 ))}
               </div>
               <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Tab</kbd>
+              <div className="flex-1" />
+              {specReady && (
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={handleSave}
+                  disabled={!title.trim() || saving}
+                  className="rounded-md bg-blue-600 px-3 py-1 text-[12px] font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {saving ? "Saving..." : "Save"}
+                </button>
+              )}
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => router.back()}
+                className="flex items-center gap-1.5 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
+              </button>
             </div>
             <AgentChat
               agentName={specType === "ui-refactor" ? "Design Spec Expert" : "Feature Spec Expert"}
