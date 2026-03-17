@@ -110,17 +110,42 @@ function parseReviewJson(raw: string | undefined | null): { score: number; summa
     const parsed = JSON.parse(raw);
     if (typeof parsed.score === "number") return parsed;
   } catch {}
-  // Try extracting JSON from the last {...} block containing "score"
-  const matches = raw.match(/\{[^{}]*"score"\s*:\s*\d+[^{}]*\}/g);
-  if (matches) {
-    // Use the last match (most likely the final output)
-    for (let i = matches.length - 1; i >= 0; i--) {
-      try {
-        const parsed = JSON.parse(matches[i]);
-        if (typeof parsed.score === "number") return parsed;
-      } catch {}
+
+  // Extract brace-balanced JSON objects containing "score" (handles nested arrays/objects)
+  // Search from the end of the string since the JSON is usually the last output
+  const candidates: string[] = [];
+  for (let i = raw.length - 1; i >= 0; i--) {
+    if (raw[i] === "}") {
+      // Walk backwards to find the matching opening brace
+      let depth = 0;
+      let inString = false;
+      let escape = false;
+      for (let j = i; j >= 0; j--) {
+        const ch = raw[j];
+        if (escape) { escape = false; continue; }
+        if (ch === "\\" && inString) { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === "}") depth++;
+        else if (ch === "{") {
+          depth--;
+          if (depth === 0) {
+            const candidate = raw.slice(j, i + 1);
+            if (candidate.includes('"score"')) candidates.push(candidate);
+            break;
+          }
+        }
+      }
+      if (candidates.length >= 3) break; // Don't scan the entire string
     }
   }
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (typeof parsed.score === "number") return parsed;
+    } catch {}
+  }
+
   // Try extracting from markdown code fences
   const fenceMatch = raw.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
   if (fenceMatch) {
