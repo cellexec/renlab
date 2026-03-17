@@ -120,7 +120,7 @@ async function runChatStream(params: ChatStreamParams, state: ChatStreamState) {
   }
 
   function flushDb() {
-    if (!assistantMessageId) return;
+    if (!assistantMessageId || blocks.length === 0) return;
     const now = Date.now();
     if (now - lastFlush > 500) {
       lastFlush = now;

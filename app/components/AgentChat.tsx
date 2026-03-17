@@ -174,6 +174,7 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
 
     if (!overrideText) setInput("");
     setIsStreaming(true);
+    sendCalledRef.current = true;
 
     // Reset textarea to single-line height
     if (!overrideText && textareaRef.current) {
@@ -301,7 +302,17 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
           try {
             const parsed = JSON.parse(data);
             // Handle buffered events (replayed on reconnect)
+            // Reset the last assistant message first to avoid duplicating content
             if (parsed.type === "buffer" && Array.isArray(parsed.events)) {
+              const current = messagesRef.current;
+              const last = current[current.length - 1];
+              if (last?.role === "assistant") {
+                const reset = current.map((msg, idx) =>
+                  idx === current.length - 1 ? { ...msg, content: "", blocks: [] } : msg
+                );
+                messagesRef.current = reset;
+                updateMessages(cid, reset);
+              }
               for (const event of parsed.events) {
                 applyStreamEvent(event, cid);
               }
@@ -383,17 +394,23 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
     return null;
   }, [messages, onApplySpec, isStreaming]);
 
-  // Always try to reconnect to a background stream on mount
-  // The SSE endpoint returns [DONE] immediately if no stream is active, so this is cheap
+  // On mount: if we resumed an existing session with messages, try reconnecting
+  // to an active background stream. Skip if send() already started streaming.
   const reconnectedRef = useRef(false);
+  const sendCalledRef = useRef(false);
   useEffect(() => {
-    if (!clientId || isStreaming || reconnectedRef.current) return;
+    if (!clientId || reconnectedRef.current) return;
     reconnectedRef.current = true;
-    // Only attempt if there are messages (session was used before)
-    if (messagesRef.current.length > 0) {
-      setIsStreaming(true);
-      connectToStream(clientId);
-    }
+    // Delay slightly so send() has time to set sendCalledRef if it's a fresh send
+    const timer = setTimeout(() => {
+      if (sendCalledRef.current || isStreaming) return;
+      // Only reconnect if there are existing messages (resumed session)
+      if (messagesRef.current.length > 0) {
+        setIsStreaming(true);
+        connectToStream(clientId);
+      }
+    }, 100);
+    return () => clearTimeout(timer);
   }, [clientId]); // Only run once when clientId is set
 
   // "a" key to apply last assistant spec (when textarea not focused)
