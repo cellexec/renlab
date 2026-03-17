@@ -538,11 +538,11 @@ export default function SettingsPage() {
                               {hasChanges && (
                                 <kbd className="rounded bg-amber-500/15 border border-amber-500/20 px-1 py-0.5 text-[9px] font-medium text-amber-400">Enter to save</kbd>
                               )}
-                              <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">Esc to discard</kbd>
+                              <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Esc to discard</kbd>
                             </span>
                           )}
                           {isSelected && (
-                            <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">Enter to edit</kbd>
+                            <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Enter to edit</kbd>
                           )}
                         </div>
                         <FuzzyHighlight text={item.description} query={searchQuery} className="text-[12px] text-zinc-500 mb-3 block" highlightClass="text-violet-400 font-medium" />
@@ -593,7 +593,7 @@ export default function SettingsPage() {
               >
                 {saving ? "Saving…" : "Save"}
               </button>
-              <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">Enter</kbd>
+              <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[10px] font-medium text-cyan-400">Enter</kbd>
             </>
           )}
         </div>

@@ -455,12 +455,12 @@ export default function SpecificationsPage() {
                               </span>
                             )}
                             {isSelected && !isDeleting && (
-                              <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400 shrink-0">Enter</kbd>
+                              <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[10px] font-medium text-cyan-400 shrink-0">Enter</kbd>
                             )}
                             {isDeleting && (
                               <span className="flex items-center gap-1.5 shrink-0">
                                 <kbd className="rounded bg-red-500/15 border border-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-400">Enter to delete</kbd>
-                                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">Esc cancel</kbd>
+                                <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[10px] font-medium text-cyan-400">Esc cancel</kbd>
                               </span>
                             )}
                           </div>

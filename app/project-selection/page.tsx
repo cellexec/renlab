@@ -290,7 +290,7 @@ export default function ProjectSelectionPage() {
                         <span className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">ACTIVE</span>
                       )}
                       {isSelected && (
-                        <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">Enter to select</kbd>
+                        <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[10px] font-medium text-cyan-400">Enter to select</kbd>
                       )}
                     </div>
                     <FuzzyText text={p.path} query={query} className="text-xs text-zinc-500 font-mono truncate block mt-1" highlightClass="text-violet-400 font-medium" />

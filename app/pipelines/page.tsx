@@ -820,7 +820,7 @@ export default function PipelinesPage() {
                                   className={`text-sm truncate ${isSelected ? "text-zinc-100" : "text-zinc-300"}`}
                                 />
                                 {isSelected && (
-                                  <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400 shrink-0">Enter</kbd>
+                                  <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[10px] font-medium text-cyan-400 shrink-0">Enter</kbd>
                                 )}
                               </div>
                               <span className="text-[10px] text-zinc-700 mt-0.5 block">{relativeTime(run.createdAt)}</span>
@@ -953,7 +953,7 @@ export default function PipelinesPage() {
                             {opt.label}
                           </span>
                           {isSelected && (
-                            <kbd className="ml-auto rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[9px] font-medium text-violet-400">Enter</kbd>
+                            <kbd className="ml-auto rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd>
                           )}
                         </div>
                       </div>

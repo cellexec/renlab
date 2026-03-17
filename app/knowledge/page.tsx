@@ -455,7 +455,7 @@ export default function KnowledgePage() {
                                     className={`text-sm truncate ${isSelected ? "text-zinc-100" : "text-zinc-300"}`}
                                   />
                                   {isSelected && (
-                                    <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400 shrink-0">Enter</kbd>
+                                    <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[10px] font-medium text-cyan-400 shrink-0">Enter</kbd>
                                   )}
                                 </div>
                                 {doc.frontmatter.description && (

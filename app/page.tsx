@@ -1386,7 +1386,7 @@ export default function DashboardPage() {
                             <div className="flex-1 flex items-center gap-2 min-w-0">
                               <span className="text-[13px] text-zinc-200 truncate">{s.title}</span>
                               {isItemSelected && (
-                                <kbd className="shrink-0 rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Enter</kbd>
+                                <kbd className="shrink-0 rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd>
                               )}
                             </div>
                             <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${color}`}>
@@ -1442,7 +1442,7 @@ export default function DashboardPage() {
                             <div className="flex-1 flex items-center gap-2 min-w-0">
                               <span className="text-[13px] text-zinc-200 truncate">{r.specTitle}</span>
                               {isItemSelected && (
-                                <kbd className="shrink-0 rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Enter</kbd>
+                                <kbd className="shrink-0 rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd>
                               )}
                             </div>
                             {r.reviewScore !== null && (

@@ -510,7 +510,7 @@ export default function LocalDevPage() {
                               </span>
                             )}
                             {isSelected && !item.disabled && (
-                              <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">Enter</kbd>
+                              <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd>
                             )}
                           </div>
                           <FuzzyText text={item.description} query={searchQuery} className="text-[11px] text-zinc-500 block mt-0.5" highlightClass="text-violet-400 font-medium" />
