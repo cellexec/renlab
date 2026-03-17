@@ -50,8 +50,16 @@ export function useNotificationStore(onInsert?: (n: Notification) => void) {
 
   // Initial load + realtime subscription
   useEffect(() => {
-    getSupabase()
-      .from("notifications")
+    let sb: ReturnType<typeof getSupabase>;
+    try {
+      sb = getSupabase();
+    } catch {
+      // Supabase not configured — skip notification loading
+      setLoaded(true);
+      return;
+    }
+
+    sb.from("notifications")
       .select("*")
       .order("created_at", { ascending: false })
       .then(({ data }) => {
@@ -59,7 +67,7 @@ export function useNotificationStore(onInsert?: (n: Notification) => void) {
         setLoaded(true);
       });
 
-    const channel = getSupabase()
+    const channel = sb
       .channel("notifications-realtime")
       .on(
         "postgres_changes",
@@ -91,7 +99,7 @@ export function useNotificationStore(onInsert?: (n: Notification) => void) {
       .subscribe();
 
     return () => {
-      getSupabase().removeChannel(channel);
+      sb.removeChannel(channel);
     };
   }, []);
 
