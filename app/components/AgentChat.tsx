@@ -134,8 +134,16 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
           const existingSession = sessions.find((s) => s.clientId === existingClientId);
           if (existingSession) {
             setClientId(existingClientId);
-            // Restore sessionId if available
             if (existingSession.sessionId) setLocalSessionId(existingSession.sessionId);
+            // Clean up incomplete assistant messages (from interrupted streams)
+            const msgs = existingSession.messages;
+            if (msgs.length > 0) {
+              const last = msgs[msgs.length - 1];
+              if (last.role === "assistant" && !last.content?.trim()) {
+                // Remove empty trailing assistant message
+                updateMessages(existingClientId, msgs.slice(0, -1));
+              }
+            }
             return;
           }
         }
