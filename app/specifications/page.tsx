@@ -346,7 +346,7 @@ export default function SpecificationsPage() {
       </div>
 
       {/* 3. Search + list container */}
-      <div className="mx-5 mb-5 rounded-xl border-2 border-white/[0.08] bg-zinc-950/60 overflow-hidden">
+      <div className="mx-8 mb-8 rounded-xl border-2 border-white/[0.08] bg-zinc-950/60 overflow-hidden">
         {/* Search bar */}
         <div className="shrink-0 border-b border-white/[0.06] px-5 py-3">
           <div className="flex items-center gap-2.5">

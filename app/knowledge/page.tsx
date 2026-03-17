@@ -329,7 +329,7 @@ export default function KnowledgePage() {
       </div>
 
       {/* Content area with boxed panel */}
-      <div className="flex-1 min-h-0 overflow-hidden p-5">
+      <div className="flex-1 min-h-0 overflow-hidden p-8">
         {/* Bootstrap log */}
         {bootstrapping && (
           <div className="mb-5 p-4 rounded-xl border-2 border-white/[0.08] bg-zinc-950/60">

@@ -440,7 +440,7 @@ export default function LocalDevPage() {
       </div>
 
       {/* Main content — split: actions list + log viewer */}
-      <div className="flex flex-1 min-h-0 overflow-hidden p-5 gap-5">
+      <div className="flex flex-1 min-h-0 overflow-hidden p-8 gap-5">
         {/* Actions list box */}
         <div className="w-80 shrink-0 flex flex-col min-h-0 rounded-xl border-2 border-white/[0.08] bg-zinc-950/60 overflow-hidden">
           {/* Search bar */}

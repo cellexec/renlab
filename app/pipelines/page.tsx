@@ -716,7 +716,7 @@ export default function PipelinesPage() {
       </div>
 
       {/* Split pane content — boxed panels with spacing */}
-      <div className="relative z-10 flex flex-1 min-h-0 overflow-hidden p-5 gap-5">
+      <div className="relative z-10 flex flex-1 min-h-0 overflow-hidden p-8 gap-5">
 
         {/* LEFT PANEL: Pipeline list box */}
         <div className="w-[60%] shrink-0 flex flex-col min-h-0 rounded-xl border-2 border-white/[0.08] bg-zinc-950/60 overflow-hidden">
