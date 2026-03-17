@@ -428,6 +428,10 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
   const [editorViewOnly, setEditorViewOnly] = useState(true);
   const [pipelineConfirm, setPipelineConfirm] = useState(false);
   const [pipelineDialogIndex, setPipelineDialogIndex] = useState(0);
+  const [feedbackDialog, setFeedbackDialog] = useState<{ issues: { text: string; severity: string }[]; summary?: string } | null>(null);
+  const [feedbackSelected, setFeedbackSelected] = useState<Set<number>>(new Set());
+  const [feedbackIndex, setFeedbackIndex] = useState(0);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [discardConfirm, setDiscardConfirm] = useState(false);
   const [restoreConfirm, setRestoreConfirm] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -538,6 +542,66 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
       setSaving(false);
     }
   }, [editable, spec, saving, id, saveVersion, showToast]);
+
+  // --- Fetch review feedback from a pipeline run ---
+  const openFeedbackDialog = useCallback(async (runId: string) => {
+    setFeedbackLoading(true);
+    try {
+      const res = await fetch(`/api/pipelines/${runId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const logs = (data.logs ?? []) as { step: string; stream: string; text: string; iteration?: number }[];
+      const maxIter = Math.max(1, ...logs.map((l) => l.iteration ?? 1));
+      // Extract review details from last iteration
+      const reviewLogs = logs.filter((l) => l.step === "reviewing" && l.stream === "stdout" && (l.iteration ?? 1) === maxIter);
+      let summary: string | undefined;
+      let issues: string[] = [];
+      for (const log of reviewLogs) {
+        if (log.text.startsWith("Summary: ")) summary = log.text.replace("Summary: ", "");
+        if (log.text.startsWith("Issues:")) {
+          issues = log.text.replace("Issues:\n", "").split("\n").map((l) => l.replace(/^\s+-\s*/, "").trim()).filter(Boolean);
+        }
+      }
+      if (issues.length === 0) {
+        showToast("No review issues found");
+        return;
+      }
+      const getSeverity = (issue: string) => {
+        const lower = issue.toLowerCase();
+        if (lower.includes("critical") || lower.includes("security") || lower.includes("crash")) return "critical";
+        if (lower.includes("missing") || lower.includes("error") || lower.includes("fail") || lower.includes("wrong")) return "major";
+        return "minor";
+      };
+      setFeedbackDialog({
+        issues: issues.map((text) => ({ text, severity: getSeverity(text) })),
+        summary,
+      });
+      setFeedbackSelected(new Set(issues.map((_, i) => i))); // All selected by default
+      setFeedbackIndex(0);
+      setPipelineConfirm(false);
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }, [showToast]);
+
+  // --- Send selected feedback to chat ---
+  const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined);
+
+  const sendFeedbackToChat = useCallback(() => {
+    if (!feedbackDialog) return;
+    const selected = feedbackDialog.issues.filter((_, i) => feedbackSelected.has(i));
+    if (selected.length === 0) return;
+    const message = [
+      "The pipeline review rejected the implementation with the following issues. Please refine the specification to address them more clearly so the implementation agent doesn't make these mistakes again:\n",
+      ...(feedbackDialog.summary ? [`**Review Summary:** ${feedbackDialog.summary}\n`] : []),
+      "**Selected Issues:**",
+      ...selected.map((issue, i) => `${i + 1}. [${issue.severity}] ${issue.text}`),
+      "\nPlease update the specification to be more explicit about these requirements.",
+    ].join("\n");
+    setChatInitialMessage(message);
+    setFeedbackDialog(null);
+    setOverlayPanel("chat");
+  }, [feedbackDialog, feedbackSelected]);
 
   // --- Restore version ---
   const handleRestore = useCallback((restoredContent: string) => {
@@ -656,7 +720,43 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
         return;
       }
 
-      // ---- Layer 2: Pipeline confirm dialog ----
+      // ---- Layer 2a: Feedback issue selector ----
+      if (feedbackDialog) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setFeedbackDialog(null);
+          return;
+        }
+        if (e.key === "j" || e.key === "ArrowDown") {
+          e.preventDefault();
+          setFeedbackIndex((i) => Math.min(i + 1, feedbackDialog.issues.length - 1));
+          return;
+        }
+        if (e.key === "k" || e.key === "ArrowUp") {
+          e.preventDefault();
+          setFeedbackIndex((i) => Math.max(i - 1, 0));
+          return;
+        }
+        if (e.key === " ") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          setFeedbackSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(feedbackIndex)) next.delete(feedbackIndex);
+            else next.add(feedbackIndex);
+            return next;
+          });
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          sendFeedbackToChat();
+          return;
+        }
+        return;
+      }
+
+      // ---- Layer 2b: Pipeline confirm dialog ----
       if (pipelineConfirm) {
         if (e.key === "Escape") {
           e.preventDefault();
@@ -1003,6 +1103,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
     versions, historyIndex, historySelected, historyShowDiff,
     discardAndExitEdit, scrollOutlineItemIntoView, scrollEditorToOutlineItem, router, latestVersion, viewingVersion,
     activeRunId, activeDesignRunId, lastFinishedRun, pipelineDialogIndex,
+    feedbackDialog, feedbackIndex, sendFeedbackToChat,
   ]);
 
   /* ================================================================== */
@@ -1683,7 +1784,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
           <div
             className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             style={{ animation: "fadeIn 0.15s ease-out" }}
-            onClick={() => setOverlayPanel(null)}
+            onClick={() => { setOverlayPanel(null); setChatInitialMessage(undefined); }}
           />
           <div
             className="fixed inset-4 md:inset-8 lg:inset-12 z-50 flex flex-col rounded-2xl border border-white/[0.08] bg-zinc-950/95 backdrop-blur-2xl shadow-2xl overflow-hidden"
@@ -1712,9 +1813,114 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                   handleApplySpec(specContent);
                   setOverlayPanel(null);
                 }}
+                initialMessage={chatInitialMessage}
                 autoFocus
                 className="flex-1"
               />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ============================================================= */}
+      {/*  FEEDBACK ISSUE SELECTOR                                       */}
+      {/* ============================================================= */}
+      {feedbackDialog && (
+        <>
+          <div
+            data-overlay-open
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+            style={{ animation: "fadeIn 0.15s ease-out" }}
+            onClick={() => setFeedbackDialog(null)}
+          />
+          <div
+            className="fixed z-50 top-1/2 left-1/2 w-[480px] max-h-[70vh]"
+            style={{ animation: "modalIn 0.2s ease-out forwards" }}
+          >
+            <div className="rounded-2xl border border-white/[0.08] bg-zinc-900/95 backdrop-blur-2xl shadow-2xl overflow-hidden flex flex-col max-h-[70vh]">
+              <div className="px-5 pt-5 pb-3 shrink-0">
+                <h2 className="text-sm font-medium text-zinc-200">Select Review Issues</h2>
+                <p className="text-[12px] text-zinc-600 mt-0.5">
+                  Toggle issues to include in spec refinement — {feedbackSelected.size}/{feedbackDialog.issues.length} selected
+                </p>
+                {feedbackDialog.summary && (
+                  <p className="text-[11px] text-zinc-500 mt-2 leading-relaxed">{feedbackDialog.summary}</p>
+                )}
+              </div>
+
+              <div className="flex-1 overflow-y-auto pb-2">
+                {feedbackDialog.issues.map((issue, i) => {
+                  const isSelected = feedbackIndex === i;
+                  const isChecked = feedbackSelected.has(i);
+                  const severityColors: Record<string, string> = {
+                    critical: "text-red-400 bg-red-500/15 border-red-500/20",
+                    major: "text-amber-400 bg-amber-500/15 border-amber-500/20",
+                    minor: "text-zinc-400 bg-zinc-500/15 border-zinc-500/20",
+                  };
+                  return (
+                    <div
+                      key={i}
+                      onClick={() => {
+                        setFeedbackSelected((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(i)) next.delete(i); else next.add(i);
+                          return next;
+                        });
+                        setFeedbackIndex(i);
+                      }}
+                      className={`flex items-start gap-3 px-5 py-2.5 cursor-pointer transition-all duration-100 border-l-2 ${
+                        isSelected
+                          ? "bg-violet-500/[0.06] border-l-violet-500/60"
+                          : "border-l-transparent hover:bg-white/[0.02]"
+                      }`}
+                    >
+                      <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                        isChecked
+                          ? "bg-violet-500/30 border-violet-400/60"
+                          : "border-zinc-700 bg-transparent"
+                      }`}>
+                        {isChecked && (
+                          <svg className="h-3 w-3 text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className={`text-[12px] leading-relaxed ${isChecked ? "text-zinc-200" : "text-zinc-500"}`}>
+                          {issue.text}
+                        </span>
+                      </div>
+                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider ${severityColors[issue.severity] ?? severityColors.minor}`}>
+                        {issue.severity}
+                      </span>
+                      {isSelected && (
+                        <kbd className="shrink-0 rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Space</kbd>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="shrink-0 border-t border-white/[0.06] px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+                <span>
+                  <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">j</kbd>
+                  {" "}
+                  <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">k</kbd>
+                  {" navigate"}
+                </span>
+                <span>
+                  <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Space</kbd>
+                  {" toggle"}
+                </span>
+                <span className="ml-auto">
+                  <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd>
+                  {" send to chat"}
+                </span>
+                <span>
+                  <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
+                  {" close"}
+                </span>
+              </div>
             </div>
           </div>
         </>
@@ -1741,6 +1947,21 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
             if (btn && !btn.disabled) btn.click();
           },
         });
+
+        // Option: Refine spec from feedback (if last run failed/rejected)
+        if (lastFinishedRun && (lastFinishedRun.status === "failed" || lastFinishedRun.status === "rejected")) {
+          options.push({
+            key: "refine",
+            label: "Refine Spec from Feedback",
+            description: "Select review issues and send to the AI assistant to improve the spec",
+            icon: (
+              <svg className="h-5 w-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+              </svg>
+            ),
+            action: () => openFeedbackDialog(lastFinishedRun.id),
+          });
+        }
 
         // Option: View last run (if exists)
         if (lastFinishedRun) {
