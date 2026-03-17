@@ -428,27 +428,12 @@ export default function SettingsPage() {
 
   return (
     <div className={`flex h-full flex-col text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
-      {/* Header */}
-      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 py-4">
-        <h1 className="text-lg font-semibold text-zinc-100 tracking-tight">Settings</h1>
-        <p className="mt-0.5 text-[12px] text-zinc-500">
-          {activeProject ? activeProject.title : "No project selected"}
-        </p>
-      </div>
-
-      {/* Tab group */}
-      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-5 py-2.5">
-        <div className="flex items-center gap-3 mb-1.5">
-          <span className="text-xs text-zinc-600 flex items-center gap-1">
-            <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">&larr;</kbd>
-            <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">&rarr;</kbd>
-            <span className="ml-0.5">switch tab</span>
-          </span>
-        </div>
-        <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl p-1 inline-flex gap-1">
+      {/* Header with tab group */}
+      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 py-2.5 flex items-center gap-3">
+        <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-lg p-0.5 inline-flex gap-0.5">
           <button
             onClick={() => { if (activeProject) setActiveTab("project"); }}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+            className={`inline-flex items-center px-3 py-1.5 rounded-md text-[12px] font-medium transition-all duration-200 ${
               activeTab === "project"
                 ? "bg-white/[0.06] text-zinc-100"
                 : activeProject
@@ -461,7 +446,7 @@ export default function SettingsPage() {
           </button>
           <button
             onClick={() => setActiveTab("global")}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+            className={`inline-flex items-center px-3 py-1.5 rounded-md text-[12px] font-medium transition-all duration-200 ${
               activeTab === "global"
                 ? "bg-white/[0.06] text-zinc-100"
                 : "text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-300"
@@ -470,6 +455,10 @@ export default function SettingsPage() {
             Global
           </button>
         </div>
+        <span className="text-[11px] text-zinc-600 flex items-center gap-1">
+          <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">&larr;</kbd>
+          <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">&rarr;</kbd>
+        </span>
       </div>
 
       {/* Content area with boxed panel */}
