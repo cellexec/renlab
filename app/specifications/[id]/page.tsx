@@ -736,11 +736,6 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
       if (e.key === "c") {
         e.preventDefault();
         setOverlayPanel("chat");
-        // Delay focus to allow overlay to render
-        setTimeout(() => {
-          const chatInput = document.querySelector("[data-chat-input] textarea, [data-chat-input] input");
-          if (chatInput) (chatInput as HTMLElement).focus();
-        }, 100);
         return;
       }
 
@@ -947,10 +942,6 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
           <button
             onClick={() => {
               setOverlayPanel("chat");
-              setTimeout(() => {
-                const chatInput = document.querySelector("[data-chat-input] textarea, [data-chat-input] input");
-                if (chatInput) (chatInput as HTMLElement).focus();
-              }, 100);
             }}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all ${
               overlayPanel === "chat"
@@ -1455,6 +1446,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                   handleApplySpec(specContent);
                   setOverlayPanel(null);
                 }}
+                autoFocus
                 className="flex-1"
               />
             </div>

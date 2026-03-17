@@ -40,10 +40,12 @@ interface AgentChatProps {
   onApplySpec?: (content: string) => void;
   /** Message to auto-send once the chat session is ready */
   initialMessage?: string;
+  /** Auto-focus the input when the chat becomes ready */
+  autoFocus?: boolean;
   className?: string;
 }
 
-export function AgentChat({ agentName, context, onApplySpec, initialMessage, className }: AgentChatProps) {
+export function AgentChat({ agentName, context, onApplySpec, initialMessage, autoFocus, className }: AgentChatProps) {
   const { agents, loaded: agentsLoaded } = useAgentStore();
   const { activeProject } = useProjectContext();
   const {
@@ -86,6 +88,13 @@ export function AgentChat({ agentName, context, onApplySpec, initialMessage, cla
   useEffect(() => {
     resizeTextarea();
   }, [input, resizeTextarea]);
+
+  // Auto-focus textarea once session is ready
+  useEffect(() => {
+    if (autoFocus && clientId && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [autoFocus, clientId]);
 
   const agent = agents.find((a) => a.name === agentName);
   const session = sessions.find((s) => s.clientId === clientId);
@@ -492,6 +501,10 @@ export function AgentChat({ agentName, context, onApplySpec, initialMessage, cla
             Send
           </button>
         </form>
+        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-zinc-600">
+          <span><kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd> send</span>
+          <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Shift+Enter</kbd> newline</span>
+        </div>
       </div>
     </div>
   );
