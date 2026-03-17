@@ -22,9 +22,13 @@ function toNotification(row: Record<string, unknown>): Notification {
   };
 }
 
-export function useNotificationStore() {
+export function useNotificationStore(onInsert?: (n: Notification) => void) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loaded, setLoaded] = useState(false);
+
+  // Keep onInsert ref stable across renders
+  const onInsertRef = useRef(onInsert);
+  onInsertRef.current = onInsert;
 
   // Ref for optimistic rollback — always has latest notifications
   const notificationsRef = useRef<Notification[]>(notifications);
@@ -63,6 +67,7 @@ export function useNotificationStore() {
         (payload) => {
           const n = toNotification(payload.new);
           setNotifications((prev) => [n, ...prev]);
+          onInsertRef.current?.(n);
         },
       )
       .on(

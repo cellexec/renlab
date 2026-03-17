@@ -2,8 +2,18 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useProjectContext } from "../components/ProjectContext";
+import { useNotificationContext, type ToastPosition } from "../components/NotificationContext";
 
 const IMPORT_PATH_KEY = "importDefaultPath";
+
+const TOAST_POSITIONS: { value: ToastPosition; label: string }[] = [
+  { value: "bottom-right", label: "Bottom Right" },
+  { value: "bottom-left", label: "Bottom Left" },
+  { value: "bottom-center", label: "Bottom Center" },
+  { value: "top-right", label: "Top Right" },
+  { value: "top-left", label: "Top Left" },
+  { value: "top-center", label: "Top Center" },
+];
 
 // ── Fuzzy helpers ────────────────────────────────────────────────────────────
 
@@ -72,9 +82,12 @@ interface SettingItem {
 
 export default function SettingsPage() {
   const { activeProject, updateProject } = useProjectContext();
+  const { toastPosition, toastDuration, updateToastPosition, updateToastDuration } = useNotificationContext();
   const [threshold, setThreshold] = useState(80);
   const [maxRetries, setMaxRetries] = useState(2);
   const [scrollLines, setScrollLines] = useState(5);
+  const [localToastPosition, setLocalToastPosition] = useState<ToastPosition>(toastPosition);
+  const [localToastDuration, setLocalToastDuration] = useState(toastDuration);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -147,6 +160,79 @@ export default function SettingsPage() {
             placeholder="~/projects"
             className="w-full rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[13px] text-zinc-200 font-mono placeholder-zinc-600 outline-none transition-colors focus:border-violet-500/30"
           />
+        ),
+      },
+      {
+        id: "toast-position",
+        section: "Notifications",
+        title: "Toast Position",
+        description: "Where toast notifications appear on screen",
+        render: () => (
+          <select
+            ref={(el) => { if (el) inputRefs.current.set("toast-position", el); }}
+            value={localToastPosition}
+            onChange={(e) => {
+              const v = e.target.value as ToastPosition;
+              setLocalToastPosition(v);
+              updateToastPosition(v);
+            }}
+            onFocus={() => setEditingId("toast-position")}
+            onBlur={() => setEditingId(null)}
+            className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[13px] text-zinc-200 outline-none transition-colors focus:border-violet-500/30 cursor-pointer"
+          >
+            {TOAST_POSITIONS.map((p) => (
+              <option key={p.value} value={p.value} className="bg-zinc-900 text-zinc-200">{p.label}</option>
+            ))}
+          </select>
+        ),
+      },
+      {
+        id: "toast-duration",
+        section: "Notifications",
+        title: "Toast Duration (seconds)",
+        description: "How long toast notifications stay visible before auto-dismissing",
+        render: () => (
+          <div className="flex items-center gap-3">
+            <button
+              tabIndex={-1}
+              onClick={() => {
+                const v = Math.max(1, localToastDuration - 1);
+                setLocalToastDuration(v);
+                updateToastDuration(v);
+              }}
+              disabled={localToastDuration <= 1}
+              className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.03] border border-white/[0.06] text-zinc-300 text-sm transition-all hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              -
+            </button>
+            <input
+              ref={(el) => { if (el) inputRefs.current.set("toast-duration", el); }}
+              type="number"
+              min={1}
+              max={60}
+              value={localToastDuration}
+              onChange={(e) => {
+                const v = Math.min(60, Math.max(1, Number(e.target.value) || 1));
+                setLocalToastDuration(v);
+                updateToastDuration(v);
+              }}
+              onFocus={() => setEditingId("toast-duration")}
+              onBlur={() => setEditingId(null)}
+              className="w-12 text-center rounded-lg border border-white/[0.06] bg-white/[0.03] py-1 text-lg font-bold tabular-nums text-zinc-100 font-mono outline-none transition-colors focus:border-violet-500/30 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
+            />
+            <button
+              tabIndex={-1}
+              onClick={() => {
+                const v = Math.min(60, localToastDuration + 1);
+                setLocalToastDuration(v);
+                updateToastDuration(v);
+              }}
+              disabled={localToastDuration >= 60}
+              className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.03] border border-white/[0.06] text-zinc-300 text-sm transition-all hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              +
+            </button>
+          </div>
         ),
       });
     }
@@ -259,7 +345,7 @@ export default function SettingsPage() {
     }
 
     return items;
-  }, [activeTab, activeProject, importPath, threshold, maxRetries, scrollLines]);
+  }, [activeTab, activeProject, importPath, threshold, maxRetries, scrollLines, localToastPosition, localToastDuration, updateToastPosition, updateToastDuration]);
 
   // ── Filtered items ───────────────────────────────────────────────────────
 
