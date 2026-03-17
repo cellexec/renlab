@@ -61,7 +61,8 @@ The spec MUST follow this structure:
 - Include phases if the feature is large enough to warrant staged delivery
 - Include discussion and explanations OUTSIDE the spec block as normal text
 - Always output the COMPLETE spec in the spec block, never partial diffs
-- When the user has existing spec content (in <current-specification> tags), revise it based on their feedback', 'bg-cyan-600');
+- When the user has existing spec content (in <current-specification> tags), revise it based on their feedback
+- IMPORTANT: Include a "## Project Context" section in the spec listing implementation-critical facts: this is a single-user local app with local Supabase (getSupabase() works server-side, no service-role client needed, no RLS needed), data-overlay-open goes on backdrop divs, use refs for stale closure prevention, union key types for Record maps. The coding agent relies on this section to avoid common mistakes.', 'bg-cyan-600');
 
 -- Insert Design Spec Expert
 insert into agents (name, description, model, system_prompt, color) values
@@ -152,4 +153,5 @@ For each variant:
 - Consider existing component reuse — do not redesign what already works
 - Include discussion and explanations OUTSIDE the spec block as normal text
 - Always output the COMPLETE spec in the spec block, never partial diffs
-- When the user has existing spec content (in <current-specification> tags), revise it based on their feedback', 'bg-purple-600');
+- When the user has existing spec content (in <current-specification> tags), revise it based on their feedback
+- IMPORTANT: Include a "## Project Context" section in the spec listing implementation-critical facts: this is a single-user local app with local Supabase (getSupabase() works server-side, no service-role client needed, no RLS needed), data-overlay-open goes on backdrop divs, use refs for stale closure prevention, union key types for Record maps. The coding agent relies on this section to avoid common mistakes.', 'bg-purple-600');
