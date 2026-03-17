@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAgentStore } from "../hooks/useAgentStore";
-import { AgentEditor } from "../components/AgentEditor";
 import { AGENT_COLORS, type SubAgent } from "../agents";
 import type { Model } from "../components/ModelSelect";
 
@@ -58,43 +57,44 @@ const MODELS: { value: Model; label: string }[] = [
   { value: "haiku", label: "Haiku" },
 ];
 
+// ── Edit dialog field definitions ─────────────────────────────────────────────
+
+type FieldDef = { key: string; label: string; type: "text" | "textarea" | "select" | "color" };
+
+const FIELDS: FieldDef[] = [
+  { key: "name", label: "Name", type: "text" },
+  { key: "description", label: "Description", type: "text" },
+  { key: "model", label: "Model", type: "select" },
+  { key: "color", label: "Color", type: "color" },
+  { key: "systemPrompt", label: "System Prompt", type: "textarea" },
+];
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function AgentsPage() {
   const router = useRouter();
   const { agents, loaded, addAgent, updateAgent, deleteAgent } = useAgentStore();
 
-  // --- UI state ---
+  // --- List state ---
   const [query, setQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<SubAgent | null>(null);
   const [mouseActive, setMouseActive] = useState(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // --- Edit form state ---
-  const [editName, setEditName] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editModel, setEditModel] = useState<Model>("sonnet");
-  const [editSystemPrompt, setEditSystemPrompt] = useState("");
-  const [editColor, setEditColor] = useState(AGENT_COLORS[0] as string);
+  // --- Edit dialog state ---
+  const [dialogAgent, setDialogAgent] = useState<SubAgent | null>(null); // null = closed, agent = editing
+  const [isNewAgent, setIsNewAgent] = useState(false);
+  const [dialogFieldIndex, setDialogFieldIndex] = useState(0);
+  const [dialogEditingField, setDialogEditingField] = useState<string | null>(null); // which field is focused for editing
+  const [editValues, setEditValues] = useState<Record<string, string>>({});
+  const [savedValues, setSavedValues] = useState<Record<string, string>>({});
+  const dialogFieldRefs = useRef<Map<string, HTMLElement>>(new Map());
 
-  // --- Track original values for dirty detection ---
-  const editOriginal = useRef<{ name: string; description: string; model: Model; systemPrompt: string; color: string } | null>(null);
-
-  const hasChanges = editingId !== null && editOriginal.current !== null && (
-    editName !== editOriginal.current.name ||
-    editDescription !== editOriginal.current.description ||
-    editModel !== editOriginal.current.model ||
-    editSystemPrompt !== editOriginal.current.systemPrompt ||
-    editColor !== editOriginal.current.color
-  );
-
-  // --- Filtered list ---
+  // --- Computed ---
   const filtered = useMemo(() => {
     if (!query) return agents;
     return agents.filter((a) =>
@@ -102,10 +102,12 @@ export default function AgentsPage() {
     );
   }, [agents, query]);
 
+  const dialogHasChanges = dialogAgent !== null && FIELDS.some((f) => editValues[f.key] !== savedValues[f.key]);
+
   // --- Reset selection on query change ---
   useEffect(() => { setSelectedIndex(0); }, [query]);
 
-  // --- Scroll into view ---
+  // --- Scroll list item into view ---
   useEffect(() => {
     if (!listRef.current) return;
     const el = listRef.current.querySelector(`[data-item-index="${selectedIndex}"]`) as HTMLElement | null;
@@ -124,53 +126,86 @@ export default function AgentsPage() {
     return () => window.removeEventListener("mousemove", handler);
   }, [mouseActive]);
 
-  // --- Enter edit mode ---
-  const enterEdit = useCallback((agent: SubAgent) => {
-    setEditingId(agent.id);
-    setEditName(agent.name);
-    setEditDescription(agent.description);
-    setEditModel(agent.model);
-    setEditSystemPrompt(agent.systemPrompt);
-    setEditColor(agent.color);
-    editOriginal.current = {
+  // --- Open edit dialog ---
+  const openDialog = useCallback((agent: SubAgent) => {
+    const vals: Record<string, string> = {
       name: agent.name,
       description: agent.description,
       model: agent.model,
       systemPrompt: agent.systemPrompt,
       color: agent.color,
     };
-    // Focus first input after render
+    setDialogAgent(agent);
+    setEditValues(vals);
+    setSavedValues({ ...vals });
+    setDialogFieldIndex(0);
+    setDialogEditingField(null);
+    setIsNewAgent(false);
+  }, []);
+
+  // --- Open create dialog ---
+  const openCreateDialog = useCallback(() => {
+    const defaultColor = AGENT_COLORS[Math.floor(Math.random() * AGENT_COLORS.length)];
+    const vals: Record<string, string> = {
+      name: "",
+      description: "",
+      model: "sonnet",
+      systemPrompt: "",
+      color: defaultColor,
+    };
+    setDialogAgent({ id: "__new__", name: "", description: "", model: "sonnet", systemPrompt: "", color: defaultColor });
+    setEditValues(vals);
+    setSavedValues({ ...vals });
+    setDialogFieldIndex(0);
+    setDialogEditingField("name"); // auto-focus name field for new agents
+    setIsNewAgent(true);
     requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-edit-name]`) as HTMLInputElement | null;
-      el?.focus();
+      const el = dialogFieldRefs.current.get("name");
+      if (el) (el as HTMLInputElement).focus();
     });
   }, []);
 
-  // --- Create agent via overlay ---
-  const handleCreate = useCallback((data: Omit<SubAgent, "id"> & { id?: string }) => {
-    addAgent(data);
-    setCreating(false);
-  }, [addAgent]);
+  // --- Save dialog ---
+  const saveDialog = useCallback(() => {
+    if (!dialogAgent) return;
+    const data = {
+      name: (editValues.name || "").trim() || "Untitled Agent",
+      description: (editValues.description || "").trim(),
+      model: (editValues.model || "sonnet") as Model,
+      systemPrompt: editValues.systemPrompt || "",
+      color: editValues.color || AGENT_COLORS[0],
+    };
+    if (isNewAgent) {
+      addAgent(data);
+    } else {
+      updateAgent(dialogAgent.id, data);
+    }
+    setDialogAgent(null);
+    setDialogEditingField(null);
+  }, [dialogAgent, editValues, isNewAgent, addAgent, updateAgent]);
 
-  // --- Save changes ---
-  const handleSave = useCallback(() => {
-    if (!editingId || !editName.trim()) return;
-    updateAgent(editingId, {
-      name: editName.trim(),
-      description: editDescription.trim(),
-      model: editModel,
-      systemPrompt: editSystemPrompt,
-      color: editColor,
+  // --- Close dialog (discard) ---
+  const closeDialog = useCallback(() => {
+    setDialogAgent(null);
+    setDialogEditingField(null);
+  }, []);
+
+  // --- Focus a field for editing ---
+  const focusField = useCallback((fieldKey: string) => {
+    setDialogEditingField(fieldKey);
+    requestAnimationFrame(() => {
+      const el = dialogFieldRefs.current.get(fieldKey);
+      if (el) {
+        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT") {
+          (el as HTMLInputElement).focus();
+        }
+      }
     });
-    editOriginal.current = null;
-    setEditingId(null);
-    (document.activeElement as HTMLElement)?.blur();
-  }, [editingId, editName, editDescription, editModel, editSystemPrompt, editColor, updateAgent]);
+  }, []);
 
-  // --- Discard changes ---
-  const discardEdit = useCallback(() => {
-    editOriginal.current = null;
-    setEditingId(null);
+  // --- Exit field editing ---
+  const exitFieldEdit = useCallback(() => {
+    setDialogEditingField(null);
     (document.activeElement as HTMLElement)?.blur();
   }, []);
 
@@ -184,8 +219,64 @@ export default function AgentsPage() {
         return;
       }
 
-      // Layer 2: Create overlay open
-      if (creating) return;
+      // Layer 2: Edit dialog open
+      if (dialogAgent) {
+        // Layer 2a: Editing a specific field
+        if (dialogEditingField) {
+          const field = FIELDS.find((f) => f.key === dialogEditingField);
+          if (e.key === "Escape") {
+            e.preventDefault();
+            // Revert this field to saved value
+            setEditValues((prev) => ({ ...prev, [dialogEditingField]: savedValues[dialogEditingField] }));
+            exitFieldEdit();
+            return;
+          }
+          // Enter saves field (except in textarea where Enter adds newline)
+          if (e.key === "Enter" && field?.type !== "textarea") {
+            e.preventDefault();
+            exitFieldEdit();
+            return;
+          }
+          // Tab moves to next field
+          if (e.key === "Tab") {
+            e.preventDefault();
+            exitFieldEdit();
+            const idx = FIELDS.findIndex((f) => f.key === dialogEditingField);
+            const nextIdx = e.shiftKey ? Math.max(0, idx - 1) : Math.min(FIELDS.length - 1, idx + 1);
+            setDialogFieldIndex(nextIdx);
+            focusField(FIELDS[nextIdx].key);
+            return;
+          }
+          return; // Let input handle other keys
+        }
+
+        // Layer 2b: Navigating fields (not editing)
+        if (e.key === "Escape") {
+          e.preventDefault();
+          if (dialogHasChanges) {
+            saveDialog();
+          } else {
+            closeDialog();
+          }
+          return;
+        }
+        if (e.key === "j" || e.key === "ArrowDown") {
+          e.preventDefault();
+          setDialogFieldIndex((i) => Math.min(i + 1, FIELDS.length - 1));
+          return;
+        }
+        if (e.key === "k" || e.key === "ArrowUp") {
+          e.preventDefault();
+          setDialogFieldIndex((i) => Math.max(i - 1, 0));
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          focusField(FIELDS[dialogFieldIndex].key);
+          return;
+        }
+        return;
+      }
 
       // Layer 3: Search focused
       if (searchFocused) {
@@ -200,25 +291,7 @@ export default function AgentsPage() {
         return;
       }
 
-      // Layer 4: Editing mode
-      if (editingId) {
-        if (e.key === "Enter" && !(e.target as HTMLElement)?.matches("textarea")) {
-          e.preventDefault();
-          (document.activeElement as HTMLElement)?.blur();
-          if (hasChanges) handleSave();
-          else discardEdit();
-          return;
-        }
-        if (e.key === "Escape") {
-          e.preventDefault();
-          discardEdit();
-          return;
-        }
-        // Tab between fields within the edit form
-        return;
-      }
-
-      // Layer 5: List navigation
+      // Layer 4: List navigation
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if ((e.target as HTMLElement)?.isContentEditable) return;
@@ -228,19 +301,16 @@ export default function AgentsPage() {
       else if (e.key === "k" || e.key === "ArrowUp") { e.preventDefault(); setSelectedIndex((i) => Math.max(i - 1, 0)); }
       else if (e.key === "Tab" && !e.shiftKey) { e.preventDefault(); setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1)); }
       else if (e.key === "Tab" && e.shiftKey) { e.preventDefault(); setSelectedIndex((i) => Math.max(i - 1, 0)); }
-      else if (e.key === "Enter") {
-        e.preventDefault();
-        const agent = filtered[selectedIndex];
-        if (agent) enterEdit(agent);
-      }
-      else if (e.key === "n") { e.preventDefault(); setCreating(true); }
+      else if (e.key === "Enter") { e.preventDefault(); const agent = filtered[selectedIndex]; if (agent) openDialog(agent); }
+      else if (e.key === "n") { e.preventDefault(); openCreateDialog(); }
       else if (e.key === "d") { e.preventDefault(); const agent = filtered[selectedIndex]; if (agent) setConfirmDelete(agent); }
       else if (e.key === "Escape") { e.preventDefault(); router.push("/"); }
     };
 
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, [searchFocused, query, filtered, selectedIndex, editingId, creating, hasChanges, confirmDelete, deleteAgent, router, enterEdit, handleSave, discardEdit]);
+  }, [searchFocused, query, filtered, selectedIndex, dialogAgent, dialogEditingField, dialogFieldIndex, dialogHasChanges, confirmDelete,
+      deleteAgent, router, openDialog, openCreateDialog, saveDialog, closeDialog, focusField, exitFieldEdit, savedValues]);
 
   if (!loaded) return null;
 
@@ -259,7 +329,7 @@ export default function AgentsPage() {
           </div>
           <button
             tabIndex={-1}
-            onClick={() => setCreating(true)}
+            onClick={openCreateDialog}
             className="flex items-center gap-2 rounded-lg border border-zinc-800 px-3 py-1.5 text-[13px] text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -314,128 +384,36 @@ export default function AgentsPage() {
               </div>
             ) : (
               filtered.map((agent, i) => {
-                const isEditing = agent.id === editingId;
-                const isSelected = agent.id === selectedId && !editingId && !searchFocused;
+                const isSelected = agent.id === selectedId && !searchFocused;
                 return (
                   <div
                     key={agent.id}
                     data-item-index={i}
-                    onClick={() => { if (!isEditing) { const idx = filtered.findIndex((f) => f.id === agent.id); if (idx >= 0) setSelectedIndex(idx); } }}
-                    onMouseMove={() => { if (mouseActive && selectedIndex !== i && !editingId) setSelectedIndex(i); }}
+                    onClick={() => openDialog(agent)}
+                    onMouseMove={() => { if (mouseActive && selectedIndex !== i) setSelectedIndex(i); }}
                     className={`border-b border-white/[0.04] px-6 py-4 transition-all duration-100 cursor-pointer border-l-2 ${
-                      isEditing
-                        ? "bg-amber-500/[0.06] border-l-amber-500/60"
-                        : isSelected
-                          ? "bg-violet-500/[0.06] border-l-violet-500/60"
-                          : "border-l-transparent hover:bg-white/[0.02]"
+                      isSelected
+                        ? "bg-violet-500/[0.06] border-l-violet-500/60"
+                        : "border-l-transparent hover:bg-white/[0.02]"
                     }`}
                   >
-                    <div className="flex items-start gap-4">
-                      {/* Dot indicator */}
-                      <div className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
-                        isEditing ? "bg-amber-400" : isSelected ? "bg-violet-400" : "bg-transparent"
-                      }`} />
-
+                    <div className="flex items-center gap-4">
+                      <div className={`h-3 w-3 shrink-0 rounded-full ${agent.color}`} />
                       <div className="flex-1 min-w-0">
-                        {/* Title row with kbd hints */}
-                        <div className="flex items-center gap-2 mb-1">
-                          {isEditing ? (
-                            <span className="text-[13px] font-medium text-amber-300">{editName || "Untitled"}</span>
-                          ) : (
-                            <FuzzyText text={agent.name} query={query} className={`text-[13px] font-medium ${isSelected ? "text-zinc-100" : "text-zinc-200"}`} />
-                          )}
-                          <div className={`h-3 w-3 shrink-0 rounded-full ${isEditing ? editColor : agent.color}`} />
+                        <div className="flex items-center gap-2.5">
+                          <FuzzyText text={agent.name} query={query} className={`text-sm font-medium ${isSelected ? "text-zinc-100" : "text-zinc-300"}`} />
                           <span className="rounded-full bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 text-[10px] text-zinc-500 font-mono">
-                            {isEditing ? editModel : agent.model}
+                            {agent.model}
                           </span>
-                          {isEditing && (
-                            <span className="flex items-center gap-1.5">
-                              {hasChanges && (
-                                <kbd className="rounded bg-amber-500/15 border border-amber-500/20 px-1 py-0.5 text-[9px] font-medium text-amber-400">Enter to save</kbd>
-                              )}
-                              <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Esc to discard</kbd>
-                            </span>
-                          )}
                           {isSelected && (
                             <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[9px] font-medium text-cyan-400">Enter to edit</kbd>
                           )}
                         </div>
-
-                        {/* Description (view or edit) */}
-                        {isEditing ? (
-                          <p className="text-[12px] text-zinc-500 mb-3">{editDescription || "No description"}</p>
-                        ) : (
-                          agent.description && (
-                            <FuzzyText text={agent.description} query={query} className="text-[12px] text-zinc-500 block mb-3 truncate" highlightClass="text-violet-400 font-medium" />
-                          )
+                        {agent.description && (
+                          <FuzzyText text={agent.description} query={query} className="text-[12px] text-zinc-500 block mt-1 truncate" highlightClass="text-violet-400 font-medium" />
                         )}
-
-                        {/* Inline edit fields (only when editing) */}
-                        {isEditing && (
-                          <div className="space-y-3 max-w-lg">
-                            <div>
-                              <label className="block text-[11px] text-zinc-600 uppercase tracking-wider mb-1">Name</label>
-                              <input
-                                data-edit-name
-                                type="text"
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                className="w-full rounded-lg border border-amber-500/20 bg-zinc-900/80 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-amber-400/40"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[11px] text-zinc-600 uppercase tracking-wider mb-1">Description</label>
-                              <input
-                                type="text"
-                                value={editDescription}
-                                onChange={(e) => setEditDescription(e.target.value)}
-                                className="w-full rounded-lg border border-amber-500/20 bg-zinc-900/80 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-amber-400/40"
-                                placeholder="Short description…"
-                              />
-                            </div>
-                            <div className="flex gap-3">
-                              <div className="flex-1">
-                                <label className="block text-[11px] text-zinc-600 uppercase tracking-wider mb-1">Model</label>
-                                <select
-                                  value={editModel}
-                                  onChange={(e) => setEditModel(e.target.value as Model)}
-                                  className="w-full rounded-lg border border-amber-500/20 bg-zinc-900/80 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-amber-400/40"
-                                >
-                                  {MODELS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                                </select>
-                              </div>
-                              <div>
-                                <label className="block text-[11px] text-zinc-600 uppercase tracking-wider mb-1">Color</label>
-                                <div className="flex gap-1.5 py-1">
-                                  {AGENT_COLORS.map((c) => (
-                                    <button
-                                      key={c}
-                                      type="button"
-                                      onClick={() => setEditColor(c)}
-                                      className={`h-6 w-6 rounded-full ${c} transition-all ${
-                                        editColor === c ? "ring-2 ring-amber-400 ring-offset-1 ring-offset-zinc-900" : "opacity-50 hover:opacity-100"
-                                      }`}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                            <div>
-                              <label className="block text-[11px] text-zinc-600 uppercase tracking-wider mb-1">System Prompt</label>
-                              <textarea
-                                value={editSystemPrompt}
-                                onChange={(e) => setEditSystemPrompt(e.target.value)}
-                                rows={3}
-                                className="w-full rounded-lg border border-amber-500/20 bg-zinc-900/80 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-amber-400/40 resize-none font-mono text-[12px]"
-                                placeholder="Optional system prompt…"
-                              />
-                            </div>
-                          </div>
-                        )}
-
-                        {/* System prompt preview (view mode) */}
-                        {!isEditing && agent.systemPrompt && (
-                          <span className="text-[11px] text-zinc-700 block truncate font-mono">{agent.systemPrompt.slice(0, 100)}{agent.systemPrompt.length > 100 ? "…" : ""}</span>
+                        {agent.systemPrompt && (
+                          <span className="text-[11px] text-zinc-700 block mt-0.5 truncate font-mono">{agent.systemPrompt.slice(0, 80)}{agent.systemPrompt.length > 80 ? "…" : ""}</span>
                         )}
                       </div>
                     </div>
@@ -457,12 +435,163 @@ export default function AgentsPage() {
         <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd> back</span>
       </div>
 
-      {/* Create agent overlay */}
-      {creating && (
-        <AgentEditor
-          onSave={handleCreate}
-          onClose={() => setCreating(false)}
-        />
+      {/* ================================================================= */}
+      {/*  EDIT / CREATE DIALOG                                             */}
+      {/* ================================================================= */}
+      {dialogAgent && (
+        <>
+          <div
+            data-overlay-open
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            onClick={() => { if (dialogHasChanges) saveDialog(); else closeDialog(); }}
+          />
+          <div
+            className="fixed inset-4 md:inset-y-12 md:inset-x-[20%] lg:inset-y-16 lg:inset-x-[25%] z-50 flex flex-col rounded-2xl border border-white/[0.08] bg-zinc-950/95 backdrop-blur-2xl shadow-2xl overflow-hidden"
+            style={{ animation: "dashOverlayIn 0.2s ease-out" }}
+          >
+            {/* Dialog header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06] shrink-0">
+              <div className="flex items-center gap-3">
+                <div className={`h-3 w-3 rounded-full ${editValues.color}`} />
+                <span className="text-sm font-medium text-zinc-200">{editValues.name || (isNewAgent ? "New Agent" : "Edit Agent")}</span>
+                {editValues.model && (
+                  <span className="rounded-full bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 text-[10px] text-zinc-500 font-mono">{editValues.model}</span>
+                )}
+              </div>
+              <button
+                onClick={() => { if (dialogHasChanges) saveDialog(); else closeDialog(); }}
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors"
+              >
+                <span className="text-[11px]">{dialogHasChanges ? "Save & Close" : "Close"}</span>
+                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
+              </button>
+            </div>
+
+            {/* Field list */}
+            <div className="flex-1 overflow-y-auto">
+              {FIELDS.map((field, fi) => {
+                const isFieldSelected = dialogFieldIndex === fi && !dialogEditingField;
+                const isFieldEditing = dialogEditingField === field.key;
+                const value = editValues[field.key] ?? "";
+                const isDirty = value !== savedValues[field.key];
+
+                return (
+                  <div
+                    key={field.key}
+                    onClick={() => { setDialogFieldIndex(fi); if (!isFieldEditing) focusField(field.key); }}
+                    className={`border-b border-white/[0.04] px-6 py-4 transition-all duration-100 cursor-pointer border-l-2 ${
+                      isFieldEditing
+                        ? "bg-amber-500/[0.06] border-l-amber-500/60"
+                        : isFieldSelected
+                          ? "bg-violet-500/[0.06] border-l-violet-500/60"
+                          : "border-l-transparent hover:bg-white/[0.02]"
+                    }`}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
+                        isFieldEditing ? "bg-amber-400" : isFieldSelected ? "bg-violet-400" : "bg-transparent"
+                      }`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">{field.label}</span>
+                          {isDirty && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />}
+                          {isFieldEditing && (
+                            <span className="flex items-center gap-1.5 ml-auto">
+                              {field.type !== "textarea" && (
+                                <kbd className="rounded bg-amber-500/15 border border-amber-500/20 px-1 py-0.5 text-[9px] font-medium text-amber-400">Enter</kbd>
+                              )}
+                              <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Esc</kbd>
+                            </span>
+                          )}
+                          {isFieldSelected && (
+                            <kbd className="ml-auto rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd>
+                          )}
+                        </div>
+
+                        {/* Field content */}
+                        {field.type === "text" && (
+                          isFieldEditing ? (
+                            <input
+                              ref={(el) => { if (el) dialogFieldRefs.current.set(field.key, el); }}
+                              type="text"
+                              value={value}
+                              onChange={(e) => setEditValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                              className="w-full max-w-lg rounded-lg border border-amber-500/20 bg-zinc-900/80 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-amber-400/40"
+                              placeholder={`Enter ${field.label.toLowerCase()}…`}
+                            />
+                          ) : (
+                            <span className={`text-sm ${value ? "text-zinc-300" : "text-zinc-700"}`}>{value || `No ${field.label.toLowerCase()}`}</span>
+                          )
+                        )}
+
+                        {field.type === "textarea" && (
+                          isFieldEditing ? (
+                            <textarea
+                              ref={(el) => { if (el) dialogFieldRefs.current.set(field.key, el); }}
+                              value={value}
+                              onChange={(e) => setEditValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                              rows={4}
+                              className="w-full max-w-lg rounded-lg border border-amber-500/20 bg-zinc-900/80 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-amber-400/40 resize-none font-mono text-[12px]"
+                              placeholder="Optional system prompt…"
+                            />
+                          ) : (
+                            <span className={`text-[12px] font-mono block truncate ${value ? "text-zinc-400" : "text-zinc-700"}`}>
+                              {value ? (value.slice(0, 120) + (value.length > 120 ? "…" : "")) : "No system prompt"}
+                            </span>
+                          )
+                        )}
+
+                        {field.type === "select" && (
+                          isFieldEditing ? (
+                            <select
+                              ref={(el) => { if (el) dialogFieldRefs.current.set(field.key, el); }}
+                              value={value}
+                              onChange={(e) => setEditValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                              className="rounded-lg border border-amber-500/20 bg-zinc-900/80 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-amber-400/40"
+                            >
+                              {MODELS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                            </select>
+                          ) : (
+                            <span className="text-sm text-zinc-300">{MODELS.find((m) => m.value === value)?.label ?? value}</span>
+                          )
+                        )}
+
+                        {field.type === "color" && (
+                          <div className="flex gap-2 py-0.5">
+                            {AGENT_COLORS.map((c) => (
+                              <button
+                                key={c}
+                                ref={(el) => { if (el && c === AGENT_COLORS[0]) dialogFieldRefs.current.set(field.key, el); }}
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setEditValues((prev) => ({ ...prev, color: c })); }}
+                                className={`h-6 w-6 rounded-full ${c} transition-all ${
+                                  value === c
+                                    ? isFieldEditing ? "ring-2 ring-amber-400 ring-offset-1 ring-offset-zinc-900" : "ring-2 ring-white/30 ring-offset-1 ring-offset-zinc-900"
+                                    : "opacity-40 hover:opacity-100"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Dialog bottom hints */}
+            <div className="shrink-0 border-t border-white/[0.06] px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+              <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">j</kbd> <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">k</kbd> navigate</span>
+              <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Enter</kbd> edit field</span>
+              <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Tab</kbd> next</span>
+              <span className="ml-auto">
+                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
+                {dialogHasChanges ? " save & close" : " close"}
+              </span>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Delete confirm dialog */}
