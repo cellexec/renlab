@@ -3,6 +3,7 @@ import { rm } from "fs/promises";
 import { stream } from "node-claude-sdk";
 import { cleanEnv } from "./env";
 import { getSupabase } from "./supabase";
+import { emitPipelineNotification } from "./emitNotification";
 import {
   stripAnsi,
   execInDir,
@@ -683,6 +684,7 @@ CRITICAL: Only create/modify files within your current working directory. Do NOT
     await updateDb(runId, { status: "awaiting_review", current_step: "awaiting_review" });
 
     pushLog(runId, "awaiting_review", "stdout", "Pipeline paused — awaiting user review.");
+    await emitPipelineNotification("awaiting_review", { runId, projectId, specTitle, pipelineType: "design", body: "Design variants ready for review" }).catch(() => {});
     if (devServerStarted && state.devServerPort) {
       pushLog(runId, "awaiting_review", "stdout", `Review variants at:`);
       for (const sv of successfulVariants) {
@@ -789,6 +791,7 @@ CRITICAL: Work only within the current working directory.`;
     setRunStatus(runId, "success", null);
     await updateDb(runId, { status: "success", finished_at: new Date().toISOString() });
     await setSpecStatus(specificationId, "done");
+    await emitPipelineNotification("success", { runId, projectId, specTitle, pipelineType: "design" }).catch(() => {});
 
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -804,6 +807,7 @@ CRITICAL: Work only within the current working directory.`;
       finished_at: new Date().toISOString(),
     });
     await setSpecStatus(specificationId, isCancelled ? "cancelled" : "failed");
+    await emitPipelineNotification(isCancelled ? "cancelled" : "failed", { runId, projectId, specTitle, pipelineType: "design", body: isCancelled ? "Cancelled by user" : message }).catch(() => {});
   } finally {
     if (state.status === "success") {
       const worktreeDir = `.claude/worktrees/design-${shortId}`;

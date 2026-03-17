@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useProjectContext } from "./ProjectContext";
+import { useNotificationContext } from "./NotificationContext";
 import { useSidebarState } from "../hooks/useSidebarState";
 import { useNavHints } from "../hooks/useNavHints";
 import type { NavHintItem } from "../hooks/useNavHints";
@@ -228,6 +229,7 @@ function HintLabel({
 export function AppSidebar() {
   const pathname = usePathname();
   const { activeProject } = useProjectContext();
+  const { unreadCount, openPanel } = useNotificationContext();
   const { collapsed, toggle, sidebarWidth, isDragging, onDragStart, hydrated } = useSidebarState();
 
   // Build the full list of visible nav items for hint computation
@@ -240,8 +242,9 @@ export function AppSidebar() {
       items.push({ key: "__new-spec", label: "New Spec", href: "/specifications/new" });
     }
     for (const item of globalNavItems) items.push({ key: item.href, label: item.label, href: item.href });
+    items.push({ key: "__bell", label: "Bell", action: openPanel });
     return items;
-  }, [activeProject]);
+  }, [activeProject, openPanel]);
 
   const { active: hintActive, typed, hints, matching } = useNavHints(allNavItems);
 
@@ -371,15 +374,31 @@ export function AppSidebar() {
       {/* Footer: notifications + collapse toggle */}
       <div className={`border-t border-white/[0.06] ${collapsed ? "px-1.5" : "px-3"} py-3 flex flex-col gap-0.5`}>
         <button
-          className={`flex items-center rounded-md px-2.5 py-2 text-sm text-zinc-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 hover:bg-white/[0.04] hover:text-zinc-200 ${
+          onClick={openPanel}
+          className={`relative flex items-center rounded-md px-2.5 py-2 text-sm text-zinc-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 hover:bg-white/[0.04] hover:text-zinc-200 ${
             collapsed ? "justify-center w-full" : "gap-3 w-full"
-          }`}
+          } ${hintActive && !matching.has("__bell") ? "opacity-25" : ""}`}
           title="Notifications"
         >
-          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-          </svg>
-          {!collapsed && <span className="truncate">Notifications</span>}
+          <span className="relative shrink-0">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+            </svg>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-violet-500 px-1 text-[9px] font-bold text-white leading-none">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </span>
+          {!collapsed && (
+            <HintLabel
+              label="Notifications"
+              hint={hints.get("__bell") ?? ""}
+              typed={typed}
+              hintActive={hintActive}
+              dimmed={hintActive && !matching.has("__bell")}
+            />
+          )}
         </button>
         <button
           onClick={toggle}
