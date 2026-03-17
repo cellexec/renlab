@@ -239,10 +239,9 @@ export function AppSidebar() {
     ];
     if (activeProject) {
       for (const item of projectNavItems) items.push({ key: item.href, label: item.label, href: item.href });
-      items.push({ key: "__new-spec", label: "New Spec", href: "/specifications/new" });
     }
     for (const item of globalNavItems) items.push({ key: item.href, label: item.label, href: item.href });
-    items.push({ key: "__bell", label: "Bell", action: openPanel });
+    items.push({ key: "__bell", label: "Notifications", action: openPanel });
     return items;
   }, [activeProject, openPanel]);
 
