@@ -121,6 +121,113 @@ function computeDiff(oldText: string, newText: string): DiffLine[] {
   return result;
 }
 
+/** Word-level diff between two strings. Returns spans with highlight flags. */
+type WordSpan = { text: string; highlight: boolean };
+
+function computeWordDiff(oldStr: string, newStr: string): { oldSpans: WordSpan[]; newSpans: WordSpan[] } {
+  // Tokenize into words and whitespace
+  const tokenize = (s: string) => s.match(/\S+|\s+/g) || [];
+  const oldTokens = tokenize(oldStr);
+  const newTokens = tokenize(newStr);
+
+  // LCS on tokens
+  const m = oldTokens.length, n = newTokens.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = oldTokens[i - 1] === newTokens[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+
+  // Backtrack to find matching tokens
+  const oldMatch = new Set<number>();
+  const newMatch = new Set<number>();
+  let oi = m, ni = n;
+  while (oi > 0 && ni > 0) {
+    if (oldTokens[oi - 1] === newTokens[ni - 1]) { oldMatch.add(oi - 1); newMatch.add(ni - 1); oi--; ni--; }
+    else if (dp[oi][ni - 1] >= dp[oi - 1][ni]) { ni--; }
+    else { oi--; }
+  }
+
+  // Build spans, merging consecutive same-highlight tokens
+  const buildSpans = (tokens: string[], matched: Set<number>): WordSpan[] => {
+    const spans: WordSpan[] = [];
+    for (let i = 0; i < tokens.length; i++) {
+      const hl = !matched.has(i);
+      if (spans.length > 0 && spans[spans.length - 1].highlight === hl) {
+        spans[spans.length - 1].text += tokens[i];
+      } else {
+        spans.push({ text: tokens[i], highlight: hl });
+      }
+    }
+    return spans;
+  };
+
+  return { oldSpans: buildSpans(oldTokens, oldMatch), newSpans: buildSpans(newTokens, newMatch) };
+}
+
+/** Number of context lines to show around each hunk */
+const CONTEXT_LINES = 3;
+
+/** Group diff lines into display sections: hunks with context, collapsed gaps */
+type DiffSection =
+  | { type: "hunk"; startIndex: number; lines: { line: DiffLine; index: number }[] }
+  | { type: "collapsed"; count: number; startIndex: number };
+
+function buildSections(lines: DiffLine[]): DiffSection[] {
+  // Find ranges of changed lines (expanded by context)
+  const changed = new Set<number>();
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].type !== "unchanged") {
+      for (let c = Math.max(0, i - CONTEXT_LINES); c <= Math.min(lines.length - 1, i + CONTEXT_LINES); c++) {
+        changed.add(c);
+      }
+    }
+  }
+
+  const sections: DiffSection[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (changed.has(i)) {
+      const hunkLines: { line: DiffLine; index: number }[] = [];
+      while (i < lines.length && changed.has(i)) {
+        hunkLines.push({ line: lines[i], index: i });
+        i++;
+      }
+      sections.push({ type: "hunk", startIndex: hunkLines[0].index, lines: hunkLines });
+    } else {
+      const start = i;
+      while (i < lines.length && !changed.has(i)) i++;
+      sections.push({ type: "collapsed", count: i - start, startIndex: start });
+    }
+  }
+  return sections;
+}
+
+/** Pair up adjacent removed+added lines for word-level diff */
+function pairChangedLines(lines: DiffLine[], startIdx: number, endIdx: number): Map<number, WordSpan[]> {
+  const wordSpans = new Map<number, WordSpan[]>();
+  let i = startIdx;
+  while (i <= endIdx) {
+    if (lines[i].type === "removed") {
+      // Collect consecutive removed, then consecutive added
+      const removedStart = i;
+      while (i <= endIdx && lines[i].type === "removed") i++;
+      const addedStart = i;
+      while (i <= endIdx && lines[i].type === "added") i++;
+      const removedCount = addedStart - removedStart;
+      const addedCount = i - addedStart;
+      const pairs = Math.min(removedCount, addedCount);
+      for (let p = 0; p < pairs; p++) {
+        const { oldSpans, newSpans } = computeWordDiff(lines[removedStart + p].text, lines[addedStart + p].text);
+        wordSpans.set(removedStart + p, oldSpans);
+        wordSpans.set(addedStart + p, newSpans);
+      }
+    } else {
+      i++;
+    }
+  }
+  return wordSpans;
+}
+
 function DiffView({ oldVersion, newVersion }: { oldVersion: { content: string; versionNumber: number }; newVersion: { content: string; versionNumber: number } }) {
   const lines = useMemo(() => computeDiff(oldVersion.content, newVersion.content), [oldVersion.content, newVersion.content]);
   const stats = useMemo(() => {
@@ -128,6 +235,21 @@ function DiffView({ oldVersion, newVersion }: { oldVersion: { content: string; v
     for (const l of lines) { if (l.type === "added") added++; else if (l.type === "removed") removed++; }
     return { added, removed };
   }, [lines]);
+
+  const sections = useMemo(() => buildSections(lines), [lines]);
+
+  // Word-level diffs for each hunk section
+  const wordDiffs = useMemo(() => {
+    const map = new Map<number, WordSpan[]>();
+    for (const sec of sections) {
+      if (sec.type !== "hunk") continue;
+      const first = sec.lines[0].index;
+      const last = sec.lines[sec.lines.length - 1].index;
+      const pairs = pairChangedLines(lines, first, last);
+      for (const [k, v] of pairs) map.set(k, v);
+    }
+    return map;
+  }, [lines, sections]);
 
   // Compute change hunk start indices (first line of each contiguous changed block)
   const hunkStarts = useMemo(() => {
@@ -178,6 +300,48 @@ function DiffView({ oldVersion, newVersion }: { oldVersion: { content: string; v
     return set;
   }, [activeHunk, hunkStarts, lines]);
 
+  const renderLine = (line: DiffLine, i: number) => {
+    const isInActiveHunk = activeHunkLines.has(i);
+    const spans = wordDiffs.get(i);
+    return (
+      <div
+        key={i}
+        data-diff-line={i}
+        className={`px-5 py-px transition-colors duration-150 whitespace-pre-wrap break-words ${
+          line.type === "added"
+            ? isInActiveHunk ? "bg-emerald-500/20 ring-1 ring-inset ring-emerald-500/10" : "bg-emerald-500/10"
+            : line.type === "removed"
+              ? isInActiveHunk ? "bg-red-500/20 ring-1 ring-inset ring-red-500/10" : "bg-red-500/10"
+              : ""
+        }`}
+      >
+        <span className={`select-none mr-2 ${line.type === "added" ? "text-emerald-400" : line.type === "removed" ? "text-red-400" : "text-zinc-700"}`}>
+          {line.type === "added" ? "+" : line.type === "removed" ? "-" : " "}
+        </span>
+        {spans ? (
+          spans.map((span, si) => (
+            <span
+              key={si}
+              className={
+                span.highlight
+                  ? line.type === "added"
+                    ? "text-emerald-200 bg-emerald-400/25 rounded-sm px-px"
+                    : "text-red-200 bg-red-400/25 rounded-sm px-px"
+                  : line.type === "added" ? "text-emerald-300" : "text-red-300"
+              }
+            >
+              {span.text}
+            </span>
+          ))
+        ) : (
+          <span className={line.type === "added" ? "text-emerald-300" : line.type === "removed" ? "text-red-300" : "text-zinc-500"}>
+            {line.text || "\u00A0"}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="flex items-center gap-3 px-5 py-2 text-[11px] text-zinc-500 border-b border-white/[0.04]">
@@ -190,41 +354,31 @@ function DiffView({ oldVersion, newVersion }: { oldVersion: { content: string; v
         )}
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <pre className="text-xs font-mono leading-relaxed">
-          {lines.map((line, i) => {
-            const isInActiveHunk = activeHunkLines.has(i);
-            return (
-              <div
-                key={i}
-                data-diff-line={i}
-                className={`px-5 py-px transition-colors duration-150 ${
-                  line.type === "added"
-                    ? isInActiveHunk ? "bg-emerald-500/20 ring-1 ring-inset ring-emerald-500/10" : "bg-emerald-500/10"
-                    : line.type === "removed"
-                      ? isInActiveHunk ? "bg-red-500/20 ring-1 ring-inset ring-red-500/10" : "bg-red-500/10"
-                      : ""
-                }`}
-              >
-                <span className={`select-none mr-2 ${line.type === "added" ? "text-emerald-400" : line.type === "removed" ? "text-red-400" : "text-zinc-700"}`}>
-                  {line.type === "added" ? "+" : line.type === "removed" ? "-" : " "}
-                </span>
-                <span className={line.type === "added" ? "text-emerald-300" : line.type === "removed" ? "text-red-300" : "text-zinc-500"}>
-                  {line.text || "\u00A0"}
-                </span>
-              </div>
-            );
+        <div className="text-xs font-mono leading-relaxed">
+          {sections.map((sec, si) => {
+            if (sec.type === "collapsed") {
+              return (
+                <div key={`c-${si}`} className="flex items-center gap-2 px-5 py-1.5 text-[10px] text-zinc-600 border-y border-white/[0.04] bg-zinc-900/50">
+                  <svg className="h-3 w-3 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                  </svg>
+                  {sec.count} unchanged line{sec.count !== 1 ? "s" : ""}
+                </div>
+              );
+            }
+            return sec.lines.map(({ line, index }) => renderLine(line, index));
           })}
-        </pre>
+        </div>
       </div>
       <div className="shrink-0 border-t border-white/[0.06] px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
         <span>
-          <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">j</kbd>
+          <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">j</kbd>
           {" "}
-          <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">k</kbd>
+          <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">k</kbd>
           {" next/prev change"}
         </span>
         <span>
-          <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-500">Esc</kbd>
+          <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
           {" back"}
         </span>
       </div>
