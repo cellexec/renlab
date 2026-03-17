@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useProjectContext } from "./ProjectContext";
-import { ProjectDropdown } from "./ProjectDropdown";
 import { useSidebarState } from "../hooks/useSidebarState";
 import { useNavHints } from "../hooks/useNavHints";
 import type { NavHintItem } from "../hooks/useNavHints";
@@ -132,59 +131,56 @@ function NavTooltip({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-// ── Brand header ────────────────────────────────────────────────────────────
+// ── Brand header (logo + Explorer inline) ───────────────────────────────────
 
-function BrandHeader({ collapsed }: { collapsed: boolean }) {
-  const [infoHover, setInfoHover] = useState(false);
-  const infoRef = useRef<HTMLDivElement>(null);
-
+function BrandHeader({
+  collapsed,
+  activeProject,
+  hintActive,
+  hints,
+  typed,
+  matching,
+}: {
+  collapsed: boolean;
+  activeProject: { title: string } | null;
+  hintActive: boolean;
+  hints: Map<string, string>;
+  typed: string;
+  matching: Set<string>;
+}) {
   return (
-    <div className={`relative flex items-center gap-2 py-3 border-b border-white/[0.06] ${collapsed ? "justify-center px-0" : "px-1"}`}>
-      <div className="shrink-0 overflow-hidden rounded-xl h-12 w-12 flex items-center justify-center">
+    <div className={`flex items-center border-b border-white/[0.06] ${collapsed ? "justify-center px-1.5 py-3" : "gap-1.5 px-2 py-3"}`}>
+      <div className="shrink-0 overflow-hidden rounded-xl h-10 w-10 flex items-center justify-center">
         <Image
           src="/renlab_logo.png"
           alt="RenLab"
-          width={72}
-          height={72}
-          className="h-[72px] w-[72px] object-cover"
+          width={56}
+          height={56}
+          className="h-[56px] w-[56px] object-cover"
         />
       </div>
       {!collapsed && (
-        <>
-          <span className="text-sm font-semibold text-zinc-100 tracking-tight">
-            RenLab
-          </span>
-          <div
-            ref={infoRef}
-            className="relative"
-            onMouseEnter={() => setInfoHover(true)}
-            onMouseLeave={() => setInfoHover(false)}
-          >
-            <div className="p-1 rounded-md text-zinc-600 hover:text-zinc-400 transition-colors cursor-default">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-              </svg>
-            </div>
-            {infoHover && (
-              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 w-52 backdrop-blur-xl bg-zinc-900/95 border border-white/[0.08] rounded-xl p-3.5 shadow-xl shadow-black/40">
-                <p className="text-[13px] font-semibold text-zinc-100 mb-1.5">
-                  Ren <span className="text-zinc-500 font-normal">(</span><span className="text-violet-400">&#x70BC;</span><span className="text-zinc-500 font-normal">)</span>
-                </p>
-                <p className="text-[11px] text-zinc-400 leading-relaxed">
-                  Chinese for <span className="text-zinc-300">to refine, to forge</span>. Specs go in, polished code comes out &mdash; refined through AI-powered review loops.
-                </p>
-              </div>
-            )}
-          </div>
-          <button
-            className="ml-auto p-1 rounded-md text-zinc-600 hover:text-zinc-400 hover:bg-white/[0.04] transition-colors"
-            title="Notifications"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-            </svg>
-          </button>
-        </>
+        <Link
+          href="/project-selection"
+          className={`flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-all min-w-0 text-zinc-300 hover:bg-white/[0.04] hover:text-zinc-100 ${
+            hintActive && !matching.has("__projects") ? "opacity-25" : ""
+          }`}
+        >
+          <svg className="h-4 w-4 shrink-0 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+          {hintActive ? (
+            <HintLabel
+              label="Explorer"
+              hint={hints.get("__projects") ?? ""}
+              typed={typed}
+              hintActive={hintActive}
+              dimmed={!matching.has("__projects")}
+            />
+          ) : (
+            <span className="truncate">{activeProject ? activeProject.title : "Explorer"}</span>
+          )}
+        </Link>
       )}
     </div>
   );
@@ -228,17 +224,13 @@ function HintLabel({
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { projects, activeProject, setActiveProjectId, deleteProject } = useProjectContext();
+  const { activeProject } = useProjectContext();
   const { collapsed, toggle, sidebarWidth, isDragging, onDragStart, hydrated } = useSidebarState();
-
-  const openProjectSelector = useCallback(() => {
-    window.dispatchEvent(new CustomEvent("open-project-selector"));
-  }, []);
 
   // Build the full list of visible nav items for hint computation
   const allNavItems = useMemo(() => {
     const items: NavHintItem[] = [
-      { key: "__projects", label: "Explorer", action: openProjectSelector },
+      { key: "__projects", label: "Explorer", href: "/project-selection" },
     ];
     if (activeProject) {
       for (const item of projectNavItems) items.push({ key: item.href, label: item.label, href: item.href });
@@ -246,7 +238,7 @@ export function AppSidebar() {
     }
     for (const item of globalNavItems) items.push({ key: item.href, label: item.label, href: item.href });
     return items;
-  }, [activeProject, openProjectSelector]);
+  }, [activeProject]);
 
   const { active: hintActive, typed, hints, matching } = useNavHints(allNavItems);
 
@@ -315,37 +307,14 @@ export function AppSidebar() {
       }`}
       style={{ width: sidebarWidth, visibility: hydrated ? "visible" : "hidden" }}
     >
-      <BrandHeader collapsed={collapsed} />
-
-      <div className="py-3 border-b border-white/[0.06]">
-        {hintActive && !collapsed ? (
-          <div
-            className={`mx-3 flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-zinc-300 transition-opacity duration-150 cursor-pointer ${
-              matching.has("__projects") ? "" : "opacity-25"
-            }`}
-            onClick={openProjectSelector}
-          >
-            <svg className="h-4 w-4 shrink-0 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-            <HintLabel
-              label="Explorer"
-              hint={hints.get("__projects") ?? ""}
-              typed={typed}
-              hintActive={hintActive}
-              dimmed={!matching.has("__projects")}
-            />
-          </div>
-        ) : (
-          <ProjectDropdown
-            projects={projects}
-            activeProject={activeProject}
-            onSelect={setActiveProjectId}
-            onDelete={deleteProject}
-            collapsed={collapsed}
-          />
-        )}
-      </div>
+      <BrandHeader
+        collapsed={collapsed}
+        activeProject={activeProject}
+        hintActive={hintActive}
+        hints={hints}
+        typed={typed}
+        matching={matching}
+      />
 
       <nav className={`flex flex-1 flex-col ${collapsed ? "px-1.5" : "px-3"}`}>
         {activeProject && (
@@ -396,8 +365,19 @@ export function AppSidebar() {
         </div>
       )}
 
-      {/* Toggle button */}
-      <div className={`border-t border-white/[0.06] ${collapsed ? "px-1.5" : "px-3"} py-3`}>
+      {/* Footer: notifications + collapse toggle */}
+      <div className={`border-t border-white/[0.06] ${collapsed ? "px-1.5" : "px-3"} py-3 flex flex-col gap-0.5`}>
+        <button
+          className={`flex items-center rounded-md px-2.5 py-2 text-sm text-zinc-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 hover:bg-white/[0.04] hover:text-zinc-200 ${
+            collapsed ? "justify-center w-full" : "gap-3 w-full"
+          }`}
+          title="Notifications"
+        >
+          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+          </svg>
+          {!collapsed && <span className="truncate">Notifications</span>}
+        </button>
         <button
           onClick={toggle}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}

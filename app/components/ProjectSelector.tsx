@@ -19,15 +19,6 @@ export function ProjectSelector() {
       if ((e.ctrlKey || e.metaKey) && e.key === "p") {
         e.preventDefault();
         router.push("/project-selection");
-        return;
-      }
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if ((e.target as HTMLElement)?.isContentEditable) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === "I") {
-        e.preventDefault();
-        router.push("/projects/import-monorepo");
       }
     };
     window.addEventListener("keydown", handler);

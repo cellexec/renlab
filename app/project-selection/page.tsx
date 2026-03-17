@@ -267,28 +267,28 @@ export default function ProjectSelectionPage() {
                 key={p.id}
                 onClick={() => selectAndGo(p.id)}
                 onMouseMove={() => { if (mouseActive && selectedIndex !== i) { setSelectedIndex(i); setUserMoved(true); } }}
-                className={`border-b border-white/[0.04] px-4 py-3 transition-colors cursor-pointer ${
+                className={`border-b border-white/[0.04] px-6 py-4 transition-colors cursor-pointer ${
                   isSelected
                     ? "bg-violet-500/[0.04] border-l-2 border-l-violet-500/60"
                     : "border-l-2 border-l-transparent hover:bg-white/[0.02]"
                 }`}
               >
-                <div className="flex items-center gap-4 max-w-xl">
-                  <div className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${isSelected ? "bg-violet-400" : "bg-transparent"}`} />
-                  <svg className={`h-4 w-4 shrink-0 ${isActive ? "text-violet-400" : "text-zinc-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <div className="flex items-center gap-4">
+                  <div className={`h-2 w-2 shrink-0 rounded-full transition-colors ${isSelected ? "bg-violet-400" : "bg-transparent"}`} />
+                  <svg className={`h-5 w-5 shrink-0 ${isActive ? "text-violet-400" : "text-zinc-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <FuzzyText text={p.title} query={query} className="text-[13px] font-medium text-zinc-200" />
+                    <div className="flex items-center gap-2.5">
+                      <FuzzyText text={p.title} query={query} className="text-sm font-medium text-zinc-200" />
                       {isActive && (
-                        <span className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[9px] font-medium text-violet-400">ACTIVE</span>
+                        <span className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-400">ACTIVE</span>
                       )}
                       {isSelected && (
-                        <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-[9px] font-medium text-zinc-600">Enter to select</kbd>
+                        <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">Enter to select</kbd>
                       )}
                     </div>
-                    <FuzzyText text={p.path} query={query} className="text-[11px] text-zinc-500 font-mono truncate block mt-0.5" highlightClass="text-violet-400 font-medium" />
+                    <FuzzyText text={p.path} query={query} className="text-xs text-zinc-500 font-mono truncate block mt-1" highlightClass="text-violet-400 font-medium" />
                   </div>
                 </div>
               </div>
