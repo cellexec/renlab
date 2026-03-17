@@ -257,8 +257,8 @@ export function AppSidebar() {
           collapsed ? "justify-center" : "gap-3 min-w-0 flex-1"
         } ${
           active
-            ? "bg-white/[0.06] text-zinc-100"
-            : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200"
+            ? "bg-white/[0.06] text-zinc-100 border-b-2 border-violet-500/60"
+            : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200 border-b-2 border-transparent"
         }`}
       >
         <span className={`transition-opacity duration-150 ${dimmed ? "opacity-25" : ""}`}>
