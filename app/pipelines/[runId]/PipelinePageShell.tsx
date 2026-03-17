@@ -519,6 +519,11 @@ export default function PipelinePageShell({
         setForceMergeConfirm(true);
         return;
       }
+      if (e.key === "c" && isActive && !cancelling) {
+        e.preventDefault();
+        handleCancel();
+        return;
+      }
       if (e.key === "Escape") {
         e.preventDefault();
         router.back();
@@ -526,7 +531,7 @@ export default function PipelinePageShell({
     };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, [forceMergeConfirm, canRetryMerge, retrying, handleRetryMerge, router]);
+  }, [forceMergeConfirm, canRetryMerge, retrying, handleRetryMerge, isActive, cancelling, handleCancel, router]);
 
   // Selected iteration (synced across coding/reviewing)
   const selectedIter = codingIteration ?? reviewingIteration ?? null;
@@ -657,7 +662,12 @@ export default function PipelinePageShell({
                 {!retrying && <kbd className="rounded bg-amber-500/15 border border-amber-500/20 px-1 py-0.5 text-[9px] font-medium text-amber-400">f</kbd>}
               </button>
             )}
-            {isActive && !cancelling && <button onClick={handleCancel} className="rounded-lg border border-red-800 px-4 py-2 text-sm text-red-400 transition-colors hover:bg-red-950/50">Cancel</button>}
+            {isActive && !cancelling && (
+              <button onClick={handleCancel} className="flex items-center gap-2 rounded-lg border border-red-800 px-4 py-2 text-sm text-red-400 transition-colors hover:bg-red-950/50">
+                Cancel
+                <kbd className="rounded bg-red-500/15 border border-red-500/20 px-1 py-0.5 text-[9px] font-medium text-red-400">c</kbd>
+              </button>
+            )}
             {cancelling && <span className="text-sm text-zinc-500">Cancelling...</span>}
           </div>
         </header>
