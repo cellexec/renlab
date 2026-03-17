@@ -9,21 +9,21 @@ import type { Specification, SpecificationStatus } from "../specifications";
 
 // ── Status grouping ─────────────────────────────────────────────────────────
 
-type DisplayGroup = "pipeline" | "draft" | "done" | "failed";
-const STATUS_ORDER: DisplayGroup[] = ["pipeline", "draft", "done", "failed"];
+type DisplayGroup = "pipeline" | "error" | "draft" | "done";
+const STATUS_ORDER: DisplayGroup[] = ["pipeline", "error", "draft", "done"];
 
 function toDisplayGroup(status: SpecificationStatus): DisplayGroup {
   if (status === "pipeline") return "pipeline";
   if (status === "draft") return "draft";
   if (status === "done") return "done";
-  return "failed"; // failed + cancelled
+  return "error"; // failed + cancelled
 }
 
 const GROUP_CONFIG: Record<DisplayGroup, { label: string; dot: string }> = {
   pipeline: { label: "In Pipeline", dot: "bg-indigo-500" },
+  error: { label: "Error", dot: "bg-red-500" },
   draft: { label: "Draft", dot: "bg-zinc-500" },
   done: { label: "Done", dot: "bg-emerald-500" },
-  failed: { label: "Failed", dot: "bg-red-500" },
 };
 
 const STATUS_BADGE: Record<SpecificationStatus, { dot: string; label: string; bg: string; text: string }> = {
@@ -93,8 +93,8 @@ function FuzzyText({ text, query, className, highlightClass }: {
   );
 }
 
-type FilterTab = "all" | DisplayGroup;
-const FILTER_TABS: FilterTab[] = ["all", ...STATUS_ORDER];
+type FilterTab = DisplayGroup;
+const FILTER_TABS: FilterTab[] = [...STATUS_ORDER];
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
@@ -111,7 +111,7 @@ export default function SpecificationsPage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
+  const [activeFilter, setActiveFilter] = useState<FilterTab>("pipeline");
 
   // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -126,9 +126,7 @@ export default function SpecificationsPage() {
     let specs = query
       ? specifications.filter((s) => fuzzyMatch(s.title, query))
       : specifications;
-    if (activeFilter !== "all") {
-      specs = specs.filter((s) => toDisplayGroup(s.status) === activeFilter);
-    }
+    specs = specs.filter((s) => toDisplayGroup(s.status) === activeFilter);
     const result: Specification[] = [];
     for (const group of STATUS_ORDER) {
       result.push(...specs.filter((s) => toDisplayGroup(s.status) === group));
@@ -141,7 +139,7 @@ export default function SpecificationsPage() {
     const specs = query
       ? specifications.filter((s) => fuzzyMatch(s.title, query))
       : specifications;
-    const counts: Record<FilterTab, number> = { all: specs.length, pipeline: 0, draft: 0, done: 0, failed: 0 };
+    const counts: Record<FilterTab, number> = { pipeline: 0, error: 0, draft: 0, done: 0 };
     for (const s of specs) counts[toDisplayGroup(s.status)]++;
     return counts;
   }, [specifications, query]);
@@ -314,8 +312,8 @@ export default function SpecificationsPage() {
           <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-xl p-1 inline-flex gap-1">
             {FILTER_TABS.map((tab) => {
               const isActive = activeFilter === tab;
-              const label = tab === "all" ? "All" : GROUP_CONFIG[tab].label;
-              const dot = tab !== "all" ? GROUP_CONFIG[tab].dot : null;
+              const label = GROUP_CONFIG[tab].label;
+              const dot = GROUP_CONFIG[tab].dot;
               const count = tabCounts[tab];
               return (
                 <button
@@ -327,7 +325,7 @@ export default function SpecificationsPage() {
                       : "text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-300"
                   }`}
                 >
-                  {dot && <span className={`h-2 w-2 rounded-full ${dot} ${tab === "pipeline" ? "animate-pulse" : ""}`} />}
+                  <span className={`h-2 w-2 rounded-full ${dot} ${tab === "pipeline" ? "animate-pulse" : ""}`} />
                   {label}
                   <span className={`text-xs font-mono tabular-nums ${isActive ? "text-zinc-400" : "text-zinc-600"}`}>
                     {count}
