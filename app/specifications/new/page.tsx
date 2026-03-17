@@ -5,8 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AgentChat } from "../../components/AgentChat";
 import { useSpecificationStore } from "../../hooks/useSpecificationStore";
 import { useProjectContext } from "../../components/ProjectContext";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import type { SpecificationType } from "../../specifications";
 
 /** Try to extract a title from "# Feature: Name" or "# Name" or "# UI Refactor: Name" */
@@ -25,8 +23,6 @@ export default function NewSpecificationPage() {
   const searchParams = useSearchParams();
   const { activeProjectId } = useProjectContext();
   const { createSpecification, saveVersion } = useSpecificationStore(activeProjectId);
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [initialMessage, setInitialMessage] = useState<string | undefined>();
   const [specType, setSpecType] = useState<SpecificationType>("feature");
@@ -41,23 +37,15 @@ export default function NewSpecificationPage() {
     }
   }, [searchParams]);
 
-  const specReady = content.trim().length > 0;
   const activeTypeConfig = SPEC_TYPES.find((t) => t.value === specType) ?? SPEC_TYPES[0];
 
-  const handleApplySpec = (specContent: string) => {
-    setContent(specContent);
-    if (!title.trim()) {
-      const extracted = extractTitle(specContent);
-      if (extracted) setTitle(extracted);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!title.trim() || !content.trim()) return;
+  const handleApplySpec = async (specContent: string) => {
+    if (saving) return;
+    const specTitle = extractTitle(specContent) || "Untitled";
     setSaving(true);
     try {
-      const specId = await createSpecification(title.trim(), activeProjectId ?? undefined, specType);
-      await saveVersion(specId, content, "Initial version");
+      const specId = await createSpecification(specTitle, activeProjectId ?? undefined, specType);
+      await saveVersion(specId, specContent, "Initial version");
       router.push(`/specifications/${specId}`);
     } catch {
       setSaving(false);
@@ -83,7 +71,7 @@ export default function NewSpecificationPage() {
       }
       if (e.key === "Escape") {
         const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA") return; // let AgentChat handle it
+        if (tag === "INPUT" || tag === "TEXTAREA") return;
         e.preventDefault();
         router.back();
       }
@@ -96,9 +84,8 @@ export default function NewSpecificationPage() {
     <div className="flex h-full flex-col text-zinc-100">
       {/* Main content */}
       <div className="flex flex-1 min-h-0">
-        {/* Chat in boxed panel */}
-        <div className={`flex flex-col transition-all duration-300 ${specReady ? "w-1/2" : "flex-1"}`}>
-          <div className={`flex-1 flex flex-col min-h-0 m-8 ${specReady ? "mr-4" : ""} rounded-xl border-2 transition-colors duration-200 bg-zinc-950/60 overflow-hidden ${activeTypeConfig.borderColor}`}>
+        <div className="flex flex-col flex-1">
+          <div className={`flex-1 flex flex-col min-h-0 m-8 rounded-xl border-2 transition-colors duration-200 bg-zinc-950/60 overflow-hidden ${activeTypeConfig.borderColor}`}>
             {/* Title + type selector + actions */}
             <div className="shrink-0 flex items-center gap-3 border-b border-white/[0.06] px-4 py-2.5">
               <span className="text-sm font-semibold text-zinc-200">New Spec</span>
@@ -121,17 +108,7 @@ export default function NewSpecificationPage() {
               </div>
               <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Tab</kbd>
               <div className="flex-1" />
-              {specReady && (
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={handleSave}
-                  disabled={!title.trim() || saving}
-                  className="rounded-md bg-blue-600 px-3 py-1 text-[12px] font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              )}
+              {saving && <span className="text-[11px] text-zinc-500">Saving...</span>}
               <button
                 type="button"
                 tabIndex={-1}
@@ -143,59 +120,14 @@ export default function NewSpecificationPage() {
             </div>
             <AgentChat
               agentName={specType === "ui-refactor" ? "Design Spec Expert" : "Feature Spec Expert"}
-              context={content}
               onApplySpec={handleApplySpec}
+              applyLabel="Save as Initial Version"
               initialMessage={initialMessage}
               autoFocus
               className="flex-1"
             />
           </div>
         </div>
-
-        {/* Spec preview panel — appears when spec is generated */}
-        {specReady && (
-          <div className="w-1/2 flex flex-col overflow-hidden pr-8 py-8">
-            <div className="flex-1 flex flex-col rounded-xl border-2 border-white/[0.08] bg-zinc-950/60 overflow-hidden">
-              {/* Title input */}
-              <div className="border-b border-white/[0.06] px-5 py-3">
-                <label className="block text-[10px] font-medium text-zinc-600 uppercase tracking-wider mb-1.5">
-                  Specification Title
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-zinc-500"
-                  placeholder="Feature name..."
-                  tabIndex={-1}
-                />
-              </div>
-
-              {/* Spec content preview */}
-              <div className="flex-1 overflow-y-auto px-5 py-4">
-                <div className="prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-                </div>
-              </div>
-
-              {/* Save footer */}
-              <div className="border-t border-white/[0.06] px-5 py-3 flex items-center justify-between">
-                <p className="text-xs text-zinc-600">
-                  Continue chatting to refine, or save when ready
-                </p>
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={handleSave}
-                  disabled={!title.trim() || saving}
-                  className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {saving ? "Saving..." : "Save Specification"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

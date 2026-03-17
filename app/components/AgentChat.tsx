@@ -38,6 +38,8 @@ interface AgentChatProps {
   context?: string;
   /** Callback when user clicks "Apply to Editor" on a spec block */
   onApplySpec?: (content: string) => void;
+  /** Custom label for the apply button (default: "Apply to Editor") */
+  applyLabel?: string;
   /** Message to auto-send once the chat session is ready */
   initialMessage?: string;
   /** Auto-focus the input when the chat becomes ready */
@@ -45,7 +47,7 @@ interface AgentChatProps {
   className?: string;
 }
 
-export function AgentChat({ agentName, context, onApplySpec, initialMessage, autoFocus, className }: AgentChatProps) {
+export function AgentChat({ agentName, context, onApplySpec, applyLabel, initialMessage, autoFocus, className }: AgentChatProps) {
   const { agents, loaded: agentsLoaded } = useAgentStore();
   const { activeProject } = useProjectContext();
   const {
@@ -491,7 +493,7 @@ export function AgentChat({ agentName, context, onApplySpec, initialMessage, aut
                     }}
                     className="rounded px-2.5 py-1 text-[11px] font-medium text-cyan-300 bg-cyan-600/20 border border-cyan-600/30 transition-colors hover:bg-cyan-600/30"
                   >
-                    Apply to Editor
+                    {applyLabel ?? "Apply to Editor"}
                   </button>
                   {msg === lastApplyableMsg && (
                     <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[9px] font-medium text-cyan-400">a</kbd>
