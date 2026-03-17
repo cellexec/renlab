@@ -52,8 +52,8 @@ function FuzzyText({ text, query, className, highlightClass }: {
 }
 
 const MODELS: { value: Model; label: string }[] = [
-  { value: "sonnet", label: "Sonnet" },
   { value: "opus", label: "Opus" },
+  { value: "sonnet", label: "Sonnet" },
   { value: "haiku", label: "Haiku" },
 ];
 
@@ -92,6 +92,7 @@ export default function AgentsPage() {
   const [query, setQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [activeTab, setActiveTab] = useState<string>("all");
   const [confirmDelete, setConfirmDelete] = useState<SubAgent | null>(null);
   const [mouseActive, setMouseActive] = useState(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -108,17 +109,23 @@ export default function AgentsPage() {
   const dialogFieldRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   // --- Computed ---
+  const sorted = useMemo(() => [...agents].sort((a, b) => a.name.localeCompare(b.name)), [agents]);
+
+  const availableTabs = useMemo(() => {
+    const models = new Set(agents.map((a) => a.model));
+    return ["all", ...MODELS.filter((m) => models.has(m.value)).map((m) => m.value)];
+  }, [agents]);
+
   const filtered = useMemo(() => {
-    if (!query) return agents;
-    return agents.filter((a) =>
-      fuzzyMatch(a.name, query) || fuzzyMatch(a.description, query) || fuzzyMatch(a.model, query)
-    );
-  }, [agents, query]);
+    let list = activeTab === "all" ? sorted : sorted.filter((a) => a.model === activeTab);
+    if (query) list = list.filter((a) => fuzzyMatch(a.name, query) || fuzzyMatch(a.description, query) || fuzzyMatch(a.model, query));
+    return list;
+  }, [sorted, activeTab, query]);
 
   const dialogHasChanges = dialogAgent !== null && FIELDS.some((f) => editValues[f.key] !== savedValues[f.key]);
 
-  // --- Reset selection on query change ---
-  useEffect(() => { setSelectedIndex(0); }, [query]);
+  // --- Reset selection on query/tab change ---
+  useEffect(() => { setSelectedIndex(0); }, [query, activeTab]);
 
   // --- Scroll list item into view ---
   useEffect(() => {
@@ -333,6 +340,18 @@ export default function AgentsPage() {
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if ((e.target as HTMLElement)?.isContentEditable) return;
 
+      if (e.key === "ArrowLeft" || e.key === "h") {
+        e.preventDefault();
+        const idx = availableTabs.indexOf(activeTab);
+        if (idx > 0) setActiveTab(availableTabs[idx - 1]);
+        return;
+      }
+      if (e.key === "ArrowRight" || e.key === "l") {
+        e.preventDefault();
+        const idx = availableTabs.indexOf(activeTab);
+        if (idx < availableTabs.length - 1) setActiveTab(availableTabs[idx + 1]);
+        return;
+      }
       if (e.key === "/") { e.preventDefault(); setSearchFocused(true); requestAnimationFrame(() => searchRef.current?.focus()); }
       else if (e.key === "j" || e.key === "ArrowDown") { e.preventDefault(); setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1)); }
       else if (e.key === "k" || e.key === "ArrowUp") { e.preventDefault(); setSelectedIndex((i) => Math.max(i - 1, 0)); }
@@ -347,7 +366,8 @@ export default function AgentsPage() {
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
   }, [searchFocused, query, filtered, selectedIndex, dialogAgent, dialogEditingField, dialogFieldIndex, dialogHasChanges, confirmDelete,
-      deleteAgent, router, openDialog, openCreateDialog, saveDialog, closeDialog, focusField, exitFieldEdit, savedValues]);
+      deleteAgent, router, openDialog, openCreateDialog, saveDialog, closeDialog, focusField, exitFieldEdit, savedValues,
+      activeTab, availableTabs]);
 
   if (!loaded) return null;
 
@@ -402,6 +422,31 @@ export default function AgentsPage() {
               />
             </div>
           </div>
+
+          {/* Tab group */}
+          {availableTabs.length > 1 && (
+            <div className="shrink-0 flex items-center gap-0 border-b border-white/[0.06] px-4">
+              {availableTabs.map((tab) => {
+                const isActive = activeTab === tab;
+                const count = tab === "all" ? sorted.length : sorted.filter((a) => a.model === tab).length;
+                const label = tab === "all" ? "All" : MODELS.find((m) => m.value === tab)?.label ?? tab;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`flex items-center gap-2 px-3 py-2 text-[12px] font-medium transition-colors border-b-2 -mb-px ${
+                      isActive
+                        ? "text-violet-400 border-violet-400/60"
+                        : "text-zinc-600 border-transparent hover:text-zinc-400"
+                    }`}
+                  >
+                    {label}
+                    <span className={`rounded-full px-1.5 py-px text-[10px] tabular-nums ${isActive ? "bg-violet-500/15 text-violet-400" : "bg-white/[0.03] text-zinc-700"}`}>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Agent list */}
           <div ref={listRef} className="flex-1 overflow-y-auto min-h-0">
@@ -464,6 +509,9 @@ export default function AgentsPage() {
 
       {/* Bottom hints bar */}
       <div className="shrink-0 border-t border-white/[0.06] bg-zinc-950 px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+        {availableTabs.length > 1 && (
+          <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">&larr;</kbd> <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">&rarr;</kbd> tab</span>
+        )}
         <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">j</kbd> <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">k</kbd> navigate</span>
         <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Enter</kbd> edit</span>
         <span><kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">/</kbd> search</span>
