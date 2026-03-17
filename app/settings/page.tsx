@@ -429,7 +429,9 @@ export default function SettingsPage() {
   return (
     <div className={`flex h-full flex-col text-zinc-100 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}>
       {/* Header with tab group */}
-      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 py-2.5 flex items-center gap-3">
+      <div className="shrink-0 border-b border-white/[0.06] bg-zinc-950 px-6 pt-4 pb-2.5">
+        <h1 className="text-lg font-semibold text-zinc-100 tracking-tight mb-2.5">Settings</h1>
+        <div className="flex items-center gap-3">
         <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-lg p-0.5 inline-flex gap-0.5">
           <button
             onClick={() => { if (activeProject) setActiveTab("project"); }}
@@ -459,6 +461,7 @@ export default function SettingsPage() {
           <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">&larr;</kbd>
           <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">&rarr;</kbd>
         </span>
+        </div>
       </div>
 
       {/* Content area with boxed panel */}
