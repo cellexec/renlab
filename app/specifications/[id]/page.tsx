@@ -1834,93 +1834,101 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
             onClick={() => setFeedbackDialog(null)}
           />
           <div
-            className="fixed z-50 top-1/2 left-1/2 w-[480px] max-h-[70vh]"
-            style={{ animation: "modalIn 0.2s ease-out forwards" }}
+            className="fixed inset-4 md:inset-8 lg:inset-12 z-50 flex flex-col rounded-2xl border border-white/[0.08] bg-zinc-950/95 backdrop-blur-2xl shadow-2xl overflow-hidden"
+            style={{ animation: "dashOverlayIn 0.2s ease-out" }}
           >
-            <div className="rounded-2xl border border-white/[0.08] bg-zinc-900/95 backdrop-blur-2xl shadow-2xl overflow-hidden flex flex-col max-h-[70vh]">
-              <div className="px-5 pt-5 pb-3 shrink-0">
-                <h2 className="text-sm font-medium text-zinc-200">Select Review Issues</h2>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06] shrink-0">
+              <div>
+                <h2 className="text-sm font-medium text-zinc-200">Refine Spec from Review Feedback</h2>
                 <p className="text-[12px] text-zinc-600 mt-0.5">
-                  Toggle issues to include in spec refinement — {feedbackSelected.size}/{feedbackDialog.issues.length} selected
+                  {feedbackSelected.size}/{feedbackDialog.issues.length} issues selected
+                  {feedbackDialog.summary && <span className="text-zinc-700"> — {feedbackDialog.summary}</span>}
                 </p>
-                {feedbackDialog.summary && (
-                  <p className="text-[11px] text-zinc-500 mt-2 leading-relaxed">{feedbackDialog.summary}</p>
-                )}
               </div>
+              <button
+                onClick={() => setFeedbackDialog(null)}
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors"
+              >
+                <span className="text-[11px]">Close</span>
+                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
+              </button>
+            </div>
 
-              <div className="flex-1 overflow-y-auto pb-2">
-                {feedbackDialog.issues.map((issue, i) => {
-                  const isSelected = feedbackIndex === i;
-                  const isChecked = feedbackSelected.has(i);
-                  const severityColors: Record<string, string> = {
-                    critical: "text-red-400 bg-red-500/15 border-red-500/20",
-                    major: "text-amber-400 bg-amber-500/15 border-amber-500/20",
-                    minor: "text-zinc-400 bg-zinc-500/15 border-zinc-500/20",
-                  };
-                  return (
-                    <div
-                      key={i}
-                      onClick={() => {
-                        setFeedbackSelected((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(i)) next.delete(i); else next.add(i);
-                          return next;
-                        });
-                        setFeedbackIndex(i);
-                      }}
-                      className={`flex items-start gap-3 px-5 py-2.5 cursor-pointer transition-all duration-100 border-l-2 ${
-                        isSelected
-                          ? "bg-violet-500/[0.06] border-l-violet-500/60"
-                          : "border-l-transparent hover:bg-white/[0.02]"
-                      }`}
-                    >
-                      <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                        isChecked
-                          ? "bg-violet-500/30 border-violet-400/60"
-                          : "border-zinc-700 bg-transparent"
-                      }`}>
-                        {isChecked && (
-                          <svg className="h-3 w-3 text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className={`text-[12px] leading-relaxed ${isChecked ? "text-zinc-200" : "text-zinc-500"}`}>
-                          {issue.text}
-                        </span>
-                      </div>
-                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider ${severityColors[issue.severity] ?? severityColors.minor}`}>
-                        {issue.severity}
-                      </span>
-                      {isSelected && (
-                        <kbd className="shrink-0 rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Space</kbd>
+            {/* Issue list */}
+            <div className="flex-1 overflow-y-auto">
+              {feedbackDialog.issues.map((issue, i) => {
+                const isSelected = feedbackIndex === i;
+                const isChecked = feedbackSelected.has(i);
+                const severityColors: Record<string, string> = {
+                  critical: "text-red-400 bg-red-500/15 border-red-500/20",
+                  major: "text-amber-400 bg-amber-500/15 border-amber-500/20",
+                  minor: "text-zinc-400 bg-zinc-500/15 border-zinc-500/20",
+                };
+                return (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      setFeedbackSelected((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(i)) next.delete(i); else next.add(i);
+                        return next;
+                      });
+                      setFeedbackIndex(i);
+                    }}
+                    className={`flex items-center gap-4 px-6 py-4 cursor-pointer transition-all duration-100 border-l-2 border-b border-white/[0.04] ${
+                      isSelected
+                        ? "bg-violet-500/[0.06] border-l-violet-500/60"
+                        : "border-l-transparent hover:bg-white/[0.02]"
+                    }`}
+                  >
+                    <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors ${
+                      isChecked
+                        ? "bg-violet-500/30 border-violet-400/60"
+                        : "border-zinc-700 bg-transparent"
+                    }`}>
+                      {isChecked && (
+                        <svg className="h-3.5 w-3.5 text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
                       )}
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="flex-1 min-w-0">
+                      <span className={`text-sm leading-relaxed ${isChecked ? "text-zinc-200" : "text-zinc-500"}`}>
+                        {issue.text}
+                      </span>
+                    </div>
+                    <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${severityColors[issue.severity] ?? severityColors.minor}`}>
+                      {issue.severity}
+                    </span>
+                    {isSelected && (
+                      <kbd className="shrink-0 rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[9px] font-medium text-cyan-400">Space</kbd>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-              <div className="shrink-0 border-t border-white/[0.06] px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
-                <span>
-                  <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">j</kbd>
-                  {" "}
-                  <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">k</kbd>
-                  {" navigate"}
-                </span>
-                <span>
-                  <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Space</kbd>
-                  {" toggle"}
-                </span>
-                <span className="ml-auto">
-                  <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd>
-                  {" send to chat"}
-                </span>
-                <span>
-                  <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
-                  {" close"}
-                </span>
-              </div>
+            {/* Bottom hints bar */}
+            <div className="shrink-0 border-t border-white/[0.06] px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+              <span>
+                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">j</kbd>
+                {" "}
+                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">k</kbd>
+                {" navigate"}
+              </span>
+              <span>
+                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Space</kbd>
+                {" toggle"}
+              </span>
+              <span className="ml-auto">
+                <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd>
+                {" send to chat"}
+              </span>
+              <span>
+                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
+                {" close"}
+              </span>
             </div>
           </div>
         </>
