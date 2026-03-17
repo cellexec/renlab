@@ -57,8 +57,9 @@ function toSession(
 function parseBlocks(content: string): ContentBlock[] | undefined {
   try {
     const parsed = JSON.parse(content);
-    if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].type) {
-      return parsed as ContentBlock[];
+    if (Array.isArray(parsed)) {
+      if (parsed.length === 0) return []; // Empty blocks — stream in progress
+      if (parsed[0].type) return parsed as ContentBlock[];
     }
   } catch {}
   return undefined;

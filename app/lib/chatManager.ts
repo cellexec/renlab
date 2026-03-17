@@ -230,8 +230,8 @@ async function runChatStream(params: ChatStreamParams, state: ChatStreamState) {
       }
     }
 
-    // Final DB update
-    if (assistantMessageId) {
+    // Final DB update (only if we have content)
+    if (assistantMessageId && blocks.length > 0) {
       await getSupabase().from("messages").update({ content: serializeContent() }).eq("id", assistantMessageId);
     }
     if (clientId) {

@@ -503,7 +503,7 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
                     : "bg-zinc-800 text-zinc-300"
                 }`}
               >
-                {msg.role === "assistant" && msg.content ? (
+                {msg.role === "assistant" && msg.content && msg.content !== "[]" ? (
                   showSpecBlocks ? (
                     <SpecBlockMessage content={msgText} onApplySpec={onApplySpec!} />
                   ) : msg.blocks && msg.blocks.length > 0 ? (
@@ -545,7 +545,7 @@ export function AgentChat({ agentName, context, onApplySpec, applyLabel, initial
                     </div>
                   )
                 ) : (
-                  <span className="whitespace-pre-wrap">{msg.content || (isStreaming ? "..." : "")}</span>
+                  <span className="whitespace-pre-wrap">{(!msg.content || msg.content === "[]") ? (isStreaming ? "..." : "") : msg.content}</span>
                 )}
               </div>
               {showApplyButton && (
