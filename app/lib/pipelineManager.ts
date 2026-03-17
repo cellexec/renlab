@@ -234,6 +234,156 @@ The JSON must be valid and parseable. Output it as the very last thing in your r
   return reviewResult;
 }
 
+/** Delta review for retry iterations: checks which previous issues were fixed and flags new ones.
+ *  Returns an accumulated score = previousScore + bonus for fixed issues - penalty for new issues. */
+async function runDeltaReview(
+  runId: string,
+  worktreeCwd: string,
+  specContent: string,
+  iterationBaseCommit: string,
+  fullBaseCommit: string,
+  previousIssues: string[],
+  previousScore: number,
+  ac: AbortController,
+  knowledgeContext = "",
+): Promise<{ score: number; summary: string; issues: string[] }> {
+  pushLog(runId, "reviewing", "stdout", "Starting delta review (checking which issues were fixed)...");
+
+  const issueList = previousIssues.map((issue, i) => `${i + 1}. ${issue}`).join("\n");
+  // Calculate points per issue so fixing all issues would reach 100
+  const pointsPerIssue = previousIssues.length > 0
+    ? Math.ceil((100 - previousScore) / previousIssues.length)
+    : 10;
+
+  const deltaReviewPrompt = `You are reviewing a RETRY iteration of an automated coding agent. The agent was asked to fix specific issues from a previous review.
+
+<specification>
+${specContent}
+</specification>
+${knowledgeContext ? `\n<project-knowledge>\n${knowledgeContext}\n</project-knowledge>\n` : ""}
+The previous review scored ${previousScore}/100 and identified these issues:
+<previous-issues>
+${issueList}
+</previous-issues>
+
+Your task:
+1. Run \`git diff ${iterationBaseCommit} HEAD\` to see ONLY the changes made in this iteration
+2. Also run \`git diff ${fullBaseCommit} HEAD\` to see the full cumulative state if you need context
+3. For EACH previous issue, determine if it was FIXED or still REMAINS
+4. Check if any NEW issues were introduced by this iteration's changes
+
+IMPORTANT: Output your evaluation as a JSON object on its own line in this exact format:
+{"fixed": [1, 3, 5], "remaining": [2, 4], "new_issues": ["<new issue 1>", "<new issue 2>"], "summary": "<one sentence summary of this iteration's changes>"}
+
+Where "fixed" and "remaining" are arrays of issue numbers (1-indexed) from the previous issues list.
+The JSON must be valid and parseable. Output it as the very last thing in your response.`;
+
+  const reviewStream = stream(deltaReviewPrompt, {
+    model: "opus",
+    cwd: worktreeCwd,
+    allowedTools: ["Read", "Glob", "Grep", "Bash(git:*)"],
+    permissionMode: "bypassPermissions",
+    timeoutMs: 0,
+    signal: ac.signal,
+  });
+
+  const { resultMessage: resultMsg, resultText: reviewText } = await consumeAgentStream(reviewStream, runId, "reviewing", ac.signal);
+
+  pushLog(runId, "reviewing", "stdout", `Delta review agent finished (subtype: ${resultMsg?.subtype ?? "none"})`);
+
+  // Parse the delta review JSON
+  let deltaResult: { fixed: number[]; remaining: number[]; new_issues: string[]; summary: string } | null = null;
+
+  const raw = resultMsg?.result || reviewText;
+  if (raw) {
+    // Try extracting JSON with "fixed" key
+    const matches = raw.match(/\{[^{}]*"fixed"\s*:\s*\[[^\]]*\][^{}]*\}/g);
+    if (matches) {
+      for (let i = matches.length - 1; i >= 0; i--) {
+        try {
+          const parsed = JSON.parse(matches[i]);
+          if (Array.isArray(parsed.fixed)) { deltaResult = parsed; break; }
+        } catch {}
+      }
+    }
+    if (!deltaResult) {
+      const fenceMatch = raw.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (fenceMatch) {
+        try {
+          const parsed = JSON.parse(fenceMatch[1]);
+          if (Array.isArray(parsed.fixed)) deltaResult = parsed;
+        } catch {}
+      }
+    }
+  }
+
+  // Fallback: if parsing failed, retry with structured output
+  if (!deltaResult) {
+    pushLog(runId, "reviewing", "stdout", "Retrying delta review with structured output...");
+    const retryStream = stream(
+      `Based on your previous review, output the delta evaluation. Reference:\n\n${reviewText.slice(0, 4000)}`,
+      {
+        model: "haiku",
+        cwd: worktreeCwd,
+        allowedTools: [],
+        permissionMode: "bypassPermissions",
+        timeoutMs: 30_000,
+        signal: ac.signal,
+        jsonSchema: {
+          type: "object",
+          properties: {
+            fixed: { type: "array", items: { type: "number" }, description: "Issue numbers that were fixed (1-indexed)" },
+            remaining: { type: "array", items: { type: "number" }, description: "Issue numbers that still remain" },
+            new_issues: { type: "array", items: { type: "string" }, description: "New issues introduced" },
+            summary: { type: "string", description: "One sentence summary" },
+          },
+          required: ["fixed", "remaining", "new_issues", "summary"],
+          additionalProperties: false,
+        },
+      }
+    );
+    for await (const msg of retryStream) {
+      if (msg.type === "result" && msg.result) {
+        try {
+          const parsed = JSON.parse(msg.result);
+          if (Array.isArray(parsed.fixed)) deltaResult = parsed;
+        } catch {}
+      }
+    }
+  }
+
+  if (!deltaResult) {
+    pushLog(runId, "reviewing", "stderr", "Delta review parsing failed, falling back to full review");
+    // Fallback to full review
+    return runReview(runId, worktreeCwd, specContent, fullBaseCommit, ac, knowledgeContext);
+  }
+
+  // Compute accumulated score
+  const fixedCount = deltaResult.fixed.length;
+  const newIssueCount = deltaResult.new_issues.length;
+  const bonus = fixedCount * pointsPerIssue;
+  const penalty = newIssueCount * Math.ceil(pointsPerIssue / 2); // new issues penalize at half rate
+  const newScore = Math.min(100, Math.max(0, previousScore + bonus - penalty));
+
+  // Build remaining issues list (unfixed previous + new)
+  const remainingIssues = [
+    ...deltaResult.remaining
+      .filter((n) => n >= 1 && n <= previousIssues.length)
+      .map((n) => previousIssues[n - 1]),
+    ...deltaResult.new_issues,
+  ];
+
+  pushLog(runId, "reviewing", "stdout",
+    `Delta: ${fixedCount} fixed (+${bonus}), ${deltaResult.remaining.length} remaining, ${newIssueCount} new (-${penalty}). Score: ${previousScore} → ${newScore}`
+  );
+
+  return {
+    score: newScore,
+    summary: deltaResult.summary,
+    issues: remainingIssues,
+  };
+}
+
 async function setSpecStatus(specificationId: string, status: "draft" | "pipeline" | "failed" | "cancelled" | "done") {
   await getSupabase()
     .from("specifications")
@@ -520,7 +670,17 @@ CRITICAL INSTRUCTIONS FOR THIS RETRY:
 
       let reviewResult: { score: number; summary: string; issues: string[] };
       try {
-        reviewResult = await runReview(runId, worktreeCwd, specContent, baseCommit, ac, knowledgeContext);
+        // Iteration 1: full review. Iterations 2+: delta review (accumulating score)
+        if (attempt > 1 && lastReviewResult && lastReviewResult.issues.length > 0) {
+          reviewResult = await runDeltaReview(
+            runId, worktreeCwd, specContent,
+            iterationBaseCommit, baseCommit,
+            lastReviewResult.issues, lastReviewResult.score,
+            ac, knowledgeContext,
+          );
+        } else {
+          reviewResult = await runReview(runId, worktreeCwd, specContent, baseCommit, ac, knowledgeContext);
+        }
       } catch (reviewErr) {
         // Re-throw cancellations — they must propagate to the outer catch
         if (ac.signal.aborted) throw reviewErr;
