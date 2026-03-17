@@ -166,9 +166,6 @@ function BrandHeader({
             hintActive && !matching.has("__projects") ? "opacity-25" : ""
           }`}
         >
-          <svg className="h-4 w-4 shrink-0 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-          </svg>
           <div className="flex flex-col min-w-0">
             <HintLabel
               label="Explorer"
@@ -178,7 +175,12 @@ function BrandHeader({
               dimmed={hintActive && !matching.has("__projects")}
             />
             {activeProject && (
-              <span className="truncate text-[11px] text-zinc-500">{activeProject.title}</span>
+              <span className="flex items-center gap-1.5 truncate text-[11px] text-zinc-500">
+                <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                {activeProject.title}
+              </span>
             )}
           </div>
         </Link>
