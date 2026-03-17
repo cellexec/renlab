@@ -2016,10 +2016,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           ),
-          action: () => {
-            const btn = document.querySelector("[data-pipeline-trigger]") as HTMLButtonElement | null;
-            if (btn && !btn.disabled) btn.click();
-          },
+          action: () => handleTriggerPipeline(),
         });
 
         // Option: Refine spec from feedback (if last run failed/rejected)
@@ -2108,34 +2105,6 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
                       </div>
                     );
                   })}
-                </div>
-
-                {/* Hidden trigger buttons */}
-                <div className="hidden">
-                  {activeProject && editable && spec.type === "feature" && (
-                    <PipelineTriggerButton
-                      specificationId={id}
-                      specVersionId={latestVersion?.id ?? null}
-                      specContent={content}
-                      specTitle={title}
-                      threshold={activeProject.pipelineThreshold}
-                      maxRetries={activeProject.maxRetries}
-                      hasActiveRun={hasActiveRun(id)}
-                      activeRunId={getActiveRunId(id)}
-                      onTrigger={triggerPipeline}
-                    />
-                  )}
-                  {activeProject && editable && spec.type === "ui-refactor" && (
-                    <DesignPipelineTriggerButton
-                      specificationId={id}
-                      specVersionId={latestVersion?.id ?? null}
-                      specContent={content}
-                      specTitle={title}
-                      hasActiveRun={hasActiveDesignRun(id)}
-                      activeRunId={getActiveDesignRunId(id)}
-                      onTrigger={triggerDesignPipeline}
-                    />
-                  )}
                 </div>
 
                 {/* Bottom hints */}
