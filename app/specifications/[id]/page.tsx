@@ -431,6 +431,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
   const [feedbackDialog, setFeedbackDialog] = useState<{ issues: { text: string; severity: string }[]; summary?: string } | null>(null);
   const [feedbackSelected, setFeedbackSelected] = useState<Set<number>>(new Set());
   const [feedbackIndex, setFeedbackIndex] = useState(0);
+  const [feedbackTab, setFeedbackTab] = useState<string>("all");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [discardConfirm, setDiscardConfirm] = useState(false);
   const [restoreConfirm, setRestoreConfirm] = useState(false);
@@ -572,12 +573,14 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
         if (lower.includes("missing") || lower.includes("error") || lower.includes("fail") || lower.includes("wrong")) return "major";
         return "minor";
       };
-      setFeedbackDialog({
-        issues: issues.map((text) => ({ text, severity: getSeverity(text) })),
-        summary,
-      });
+      const classifiedIssues = issues.map((text) => ({ text, severity: getSeverity(text) }));
+      setFeedbackDialog({ issues: classifiedIssues, summary });
       setFeedbackSelected(new Set(issues.map((_, i) => i))); // All selected by default
       setFeedbackIndex(0);
+      // Set initial tab to highest severity that has issues
+      const severityOrder = ["critical", "major", "minor"];
+      const initialTab = severityOrder.find((s) => classifiedIssues.some((iss) => iss.severity === s)) ?? "critical";
+      setFeedbackTab(initialTab);
       setPipelineConfirm(false);
     } finally {
       setFeedbackLoading(false);
@@ -722,14 +725,32 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
 
       // ---- Layer 2a: Feedback issue selector ----
       if (feedbackDialog) {
+        const severityTabs = ["critical", "major", "minor"];
+        const availableTabs = severityTabs.filter((s) => feedbackDialog.issues.some((iss) => iss.severity === s));
+        const filteredIssues = feedbackDialog.issues
+          .map((iss, idx) => ({ ...iss, originalIndex: idx }))
+          .filter((iss) => iss.severity === feedbackTab);
+
         if (e.key === "Escape") {
           e.preventDefault();
           setFeedbackDialog(null);
           return;
         }
+        if (e.key === "ArrowLeft" || e.key === "h") {
+          e.preventDefault();
+          const tabIdx = availableTabs.indexOf(feedbackTab);
+          if (tabIdx > 0) { setFeedbackTab(availableTabs[tabIdx - 1]); setFeedbackIndex(0); }
+          return;
+        }
+        if (e.key === "ArrowRight" || e.key === "l") {
+          e.preventDefault();
+          const tabIdx = availableTabs.indexOf(feedbackTab);
+          if (tabIdx < availableTabs.length - 1) { setFeedbackTab(availableTabs[tabIdx + 1]); setFeedbackIndex(0); }
+          return;
+        }
         if (e.key === "j" || e.key === "ArrowDown") {
           e.preventDefault();
-          setFeedbackIndex((i) => Math.min(i + 1, feedbackDialog.issues.length - 1));
+          setFeedbackIndex((i) => Math.min(i + 1, filteredIssues.length - 1));
           return;
         }
         if (e.key === "k" || e.key === "ArrowUp") {
@@ -740,12 +761,15 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
         if (e.key === " ") {
           e.preventDefault();
           e.stopImmediatePropagation();
-          setFeedbackSelected((prev) => {
-            const next = new Set(prev);
-            if (next.has(feedbackIndex)) next.delete(feedbackIndex);
-            else next.add(feedbackIndex);
-            return next;
-          });
+          const issue = filteredIssues[feedbackIndex];
+          if (issue) {
+            setFeedbackSelected((prev) => {
+              const next = new Set(prev);
+              if (next.has(issue.originalIndex)) next.delete(issue.originalIndex);
+              else next.add(issue.originalIndex);
+              return next;
+            });
+          }
           return;
         }
         if (e.key === "Enter") {
@@ -1103,7 +1127,7 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
     versions, historyIndex, historySelected, historyShowDiff,
     discardAndExitEdit, scrollOutlineItemIntoView, scrollEditorToOutlineItem, router, latestVersion, viewingVersion,
     activeRunId, activeDesignRunId, lastFinishedRun, pipelineDialogIndex,
-    feedbackDialog, feedbackIndex, sendFeedbackToChat,
+    feedbackDialog, feedbackIndex, feedbackTab, sendFeedbackToChat,
   ]);
 
   /* ================================================================== */
@@ -1837,99 +1861,141 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
             className="fixed inset-4 md:inset-8 lg:inset-12 z-50 flex flex-col rounded-2xl border border-white/[0.08] bg-zinc-950/95 backdrop-blur-2xl shadow-2xl overflow-hidden"
             style={{ animation: "dashOverlayIn 0.2s ease-out" }}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06] shrink-0">
-              <div>
-                <h2 className="text-sm font-medium text-zinc-200">Refine Spec from Review Feedback</h2>
-                <p className="text-[12px] text-zinc-600 mt-0.5">
-                  {feedbackSelected.size}/{feedbackDialog.issues.length} issues selected
-                  {feedbackDialog.summary && <span className="text-zinc-700"> — {feedbackDialog.summary}</span>}
-                </p>
-              </div>
-              <button
-                onClick={() => setFeedbackDialog(null)}
-                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors"
-              >
-                <span className="text-[11px]">Close</span>
-                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
-              </button>
-            </div>
+            {(() => {
+              const severityOrder = ["critical", "major", "minor"] as const;
+              const tabMeta: Record<string, { label: string; color: string; activeColor: string; dotColor: string }> = {
+                critical: { label: "Critical", color: "text-red-400/60", activeColor: "text-red-400 border-red-400/60", dotColor: "bg-red-400" },
+                major: { label: "Major", color: "text-amber-400/60", activeColor: "text-amber-400 border-amber-400/60", dotColor: "bg-amber-400" },
+                minor: { label: "Minor", color: "text-zinc-400/60", activeColor: "text-zinc-400 border-zinc-400/60", dotColor: "bg-zinc-400" },
+              };
+              const availableTabs = severityOrder.filter((s) => feedbackDialog.issues.some((iss) => iss.severity === s));
+              const filteredIssues = feedbackDialog.issues
+                .map((iss, idx) => ({ ...iss, originalIndex: idx }))
+                .filter((iss) => iss.severity === feedbackTab);
+              const selectedInTab = filteredIssues.filter((iss) => feedbackSelected.has(iss.originalIndex)).length;
 
-            {/* Issue list */}
-            <div className="flex-1 overflow-y-auto">
-              {feedbackDialog.issues.map((issue, i) => {
-                const isSelected = feedbackIndex === i;
-                const isChecked = feedbackSelected.has(i);
-                const severityColors: Record<string, string> = {
-                  critical: "text-red-400 bg-red-500/15 border-red-500/20",
-                  major: "text-amber-400 bg-amber-500/15 border-amber-500/20",
-                  minor: "text-zinc-400 bg-zinc-500/15 border-zinc-500/20",
-                };
-                return (
-                  <div
-                    key={i}
-                    onClick={() => {
-                      setFeedbackSelected((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(i)) next.delete(i); else next.add(i);
-                        return next;
-                      });
-                      setFeedbackIndex(i);
-                    }}
-                    className={`flex items-center gap-4 px-6 py-4 cursor-pointer transition-all duration-100 border-l-2 border-b border-white/[0.04] ${
-                      isSelected
-                        ? "bg-violet-500/[0.06] border-l-violet-500/60"
-                        : "border-l-transparent hover:bg-white/[0.02]"
-                    }`}
-                  >
-                    <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors ${
-                      isChecked
-                        ? "bg-violet-500/30 border-violet-400/60"
-                        : "border-zinc-700 bg-transparent"
-                    }`}>
-                      {isChecked && (
-                        <svg className="h-3.5 w-3.5 text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
+              return (
+                <>
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06] shrink-0">
+                    <div>
+                      <h2 className="text-sm font-medium text-zinc-200">Refine Spec from Review Feedback</h2>
+                      <p className="text-[12px] text-zinc-600 mt-0.5">
+                        {feedbackSelected.size}/{feedbackDialog.issues.length} issues selected
+                        {feedbackDialog.summary && <span className="text-zinc-700"> — {feedbackDialog.summary}</span>}
+                      </p>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <span className={`text-sm leading-relaxed ${isChecked ? "text-zinc-200" : "text-zinc-500"}`}>
-                        {issue.text}
-                      </span>
-                    </div>
-                    <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${severityColors[issue.severity] ?? severityColors.minor}`}>
-                      {issue.severity}
-                    </span>
-                    {isSelected && (
-                      <kbd className="shrink-0 rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[9px] font-medium text-cyan-400">Space</kbd>
-                    )}
+                    <button
+                      onClick={() => setFeedbackDialog(null)}
+                      className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors"
+                    >
+                      <span className="text-[11px]">Close</span>
+                      <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
+                    </button>
                   </div>
-                );
-              })}
-            </div>
 
-            {/* Bottom hints bar */}
-            <div className="shrink-0 border-t border-white/[0.06] px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
-              <span>
-                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">j</kbd>
-                {" "}
-                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">k</kbd>
-                {" navigate"}
-              </span>
-              <span>
-                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Space</kbd>
-                {" toggle"}
-              </span>
-              <span className="ml-auto">
-                <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd>
-                {" send to chat"}
-              </span>
-              <span>
-                <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
-                {" close"}
-              </span>
-            </div>
+                  {/* Tab group */}
+                  <div className="shrink-0 flex items-center gap-0 border-b border-white/[0.06] px-5">
+                    {availableTabs.map((sev) => {
+                      const meta = tabMeta[sev];
+                      const isActive = feedbackTab === sev;
+                      const count = feedbackDialog.issues.filter((iss) => iss.severity === sev).length;
+                      return (
+                        <button
+                          key={sev}
+                          onClick={() => { setFeedbackTab(sev); setFeedbackIndex(0); }}
+                          className={`flex items-center gap-2 px-4 py-2.5 text-[12px] font-medium transition-colors border-b-2 -mb-px ${
+                            isActive ? meta.activeColor : `${meta.color} border-transparent hover:text-zinc-300`
+                          }`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${isActive ? meta.dotColor : "bg-zinc-700"}`} />
+                          {meta.label}
+                          <span className={`rounded-full px-1.5 py-px text-[10px] tabular-nums ${isActive ? "bg-white/[0.06]" : "bg-white/[0.03] text-zinc-600"}`}>{count}</span>
+                        </button>
+                      );
+                    })}
+                    <div className="flex-1" />
+                    <span className="text-[11px] text-zinc-600 tabular-nums">{selectedInTab}/{filteredIssues.length} in tab</span>
+                  </div>
+
+                  {/* Issue list (filtered by tab) */}
+                  <div className="flex-1 overflow-y-auto">
+                    {filteredIssues.length === 0 ? (
+                      <div className="py-16 text-center text-sm text-zinc-600">No issues in this category</div>
+                    ) : filteredIssues.map((issue, i) => {
+                      const isSelected = feedbackIndex === i;
+                      const isChecked = feedbackSelected.has(issue.originalIndex);
+                      return (
+                        <div
+                          key={issue.originalIndex}
+                          onClick={() => {
+                            setFeedbackSelected((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(issue.originalIndex)) next.delete(issue.originalIndex); else next.add(issue.originalIndex);
+                              return next;
+                            });
+                            setFeedbackIndex(i);
+                          }}
+                          className={`flex items-center gap-4 px-6 py-4 cursor-pointer transition-all duration-100 border-l-2 border-b border-white/[0.04] ${
+                            isSelected
+                              ? "bg-violet-500/[0.06] border-l-violet-500/60"
+                              : "border-l-transparent hover:bg-white/[0.02]"
+                          }`}
+                        >
+                          <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors ${
+                            isChecked
+                              ? "bg-violet-500/30 border-violet-400/60"
+                              : "border-zinc-700 bg-transparent"
+                          }`}>
+                            {isChecked && (
+                              <svg className="h-3.5 w-3.5 text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className={`text-sm leading-relaxed ${isChecked ? "text-zinc-200" : "text-zinc-500"}`}>
+                              {issue.text}
+                            </span>
+                          </div>
+                          {isSelected && (
+                            <kbd className="shrink-0 rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[9px] font-medium text-cyan-400">Space</kbd>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Bottom hints bar */}
+                  <div className="shrink-0 border-t border-white/[0.06] px-5 py-2 flex items-center gap-4 text-[11px] text-zinc-600">
+                    <span>
+                      <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">&larr;</kbd>
+                      {" "}
+                      <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">&rarr;</kbd>
+                      {" tab"}
+                    </span>
+                    <span>
+                      <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">j</kbd>
+                      {" "}
+                      <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">k</kbd>
+                      {" navigate"}
+                    </span>
+                    <span>
+                      <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Space</kbd>
+                      {" toggle"}
+                    </span>
+                    <span className="ml-auto">
+                      <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1 py-0.5 text-[9px] font-medium text-cyan-400">Enter</kbd>
+                      {" send to chat"}
+                    </span>
+                    <span>
+                      <kbd className="rounded bg-violet-500/15 border border-violet-500/20 px-1 py-0.5 text-[9px] font-medium text-violet-400">Esc</kbd>
+                      {" close"}
+                    </span>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </>
       )}
