@@ -399,7 +399,7 @@ export default function AgentsPage() {
       </div>
 
       {/* Content area with boxed panel */}
-      <div className="flex-1 min-h-0 overflow-hidden p-5">
+      <div className="flex-1 min-h-0 overflow-hidden p-8">
         <div className="flex flex-col h-full rounded-xl border-2 border-white/[0.08] bg-zinc-950/60 overflow-hidden">
           {/* Search bar */}
           <div className="shrink-0 border-b border-white/[0.06] px-4 py-2.5">
