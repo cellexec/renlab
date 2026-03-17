@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppSidebar } from "./components/AppSidebar";
 import { ProjectProvider } from "./components/ProjectContext";
+import { NotificationProvider } from "./components/NotificationContext";
+import { NotificationPanel } from "./components/NotificationPanel";
 import { ProjectSelector } from "./components/ProjectSelector";
 import { EscapeBlur } from "./components/EscapeBlur";
 
@@ -32,15 +34,18 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-950`}
       >
         <ProjectProvider>
-          <div
-            className="flex h-screen"
-            style={{ background: "linear-gradient(145deg, rgba(139,92,246,0.08) 0%, rgb(9,9,11) 45%, rgba(59,130,246,0.06) 100%)" }}
-          >
-            <main className="flex-1 overflow-auto order-1">{children}</main>
-            <AppSidebar />
-            <ProjectSelector />
-            <EscapeBlur />
-          </div>
+          <NotificationProvider>
+            <div
+              className="flex h-screen"
+              style={{ background: "linear-gradient(145deg, rgba(139,92,246,0.08) 0%, rgb(9,9,11) 45%, rgba(59,130,246,0.06) 100%)" }}
+            >
+              <main className="flex-1 overflow-auto order-1">{children}</main>
+              <AppSidebar />
+              <ProjectSelector />
+              <EscapeBlur />
+              <NotificationPanel />
+            </div>
+          </NotificationProvider>
         </ProjectProvider>
       </body>
     </html>

@@ -1,5 +1,6 @@
 import { stream } from "node-claude-sdk";
 import { getSupabase } from "./supabase";
+import { emitPipelineNotification } from "./emitNotification";
 import { hasKnowledgeBase, getRelevantKnowledge } from "./knowledgeManager";
 import { stripAnsi, execInDir, formatToolDetail, resolveGitRoot } from "./pipelineUtils";
 import { consumeAgentStream as consumeAgentStreamGeneric } from "./pipelineUtils";
@@ -856,6 +857,7 @@ Keep docs concise (30-80 lines). Focus on WHAT and WHY.`;
       setRunStatus(runId, "success", null);
       await updateDb(runId, { status: "success", finished_at: new Date().toISOString() });
       await setSpecStatus(specificationId, "done");
+      await emitPipelineNotification("success", { runId, projectId, specTitle, pipelineType: "feature" }).catch(() => {});
     } else {
       // maxRetries=0 (single-pass, no retry loop) → "failed"; maxRetries>=1 → "rejected"
       const finalStatus: PipelineStatus = maxRetries === 0 ? "failed" : "rejected";
@@ -867,6 +869,7 @@ Keep docs concise (30-80 lines). Focus on WHAT and WHY.`;
       setRunStatus(runId, finalStatus, null, finalScore);
       await updateDb(runId, { status: finalStatus, error_message: errorMsg, finished_at: new Date().toISOString() });
       await setSpecStatus(specificationId, "failed");
+      await emitPipelineNotification(finalStatus === "rejected" ? "rejected" : "failed", { runId, projectId, specTitle, pipelineType: "feature", body: errorMsg }).catch(() => {});
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -881,6 +884,7 @@ Keep docs concise (30-80 lines). Focus on WHAT and WHY.`;
       finished_at: new Date().toISOString(),
     });
     await setSpecStatus(specificationId, isCancelled ? "cancelled" : "failed");
+    await emitPipelineNotification(isCancelled ? "cancelled" : "failed", { runId, projectId, specTitle, pipelineType: "feature", body: isCancelled ? "Cancelled by user" : message }).catch(() => {});
   } finally {
     if (state.status === "success") {
       pushLog(runId, state.currentStep ?? "worktree", "stdout", "Cleaning up worktree...");
