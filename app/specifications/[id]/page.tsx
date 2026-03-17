@@ -34,6 +34,12 @@ const keyframes = `
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes toastIn {
+  0% { opacity: 0; transform: translateY(8px) scale(0.96); }
+  15% { opacity: 1; transform: translateY(0) scale(1); }
+  85% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
 `;
 
 /* ------------------------------------------------------------------ */
@@ -269,6 +275,8 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
   const [pipelineConfirm, setPipelineConfirm] = useState(false);
   const [discardConfirm, setDiscardConfirm] = useState(false);
   const [restoreConfirm, setRestoreConfirm] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // --- History overlay state ---
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -347,10 +355,27 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
     }
   }, [spec, editable, saving, title, id, content, updateTitle, saveVersion]);
 
-  // --- Apply spec from chat ---
-  const handleApplySpec = useCallback((specContent: string) => {
-    if (editable) setContent(specContent);
-  }, [editable]);
+  // --- Show toast ---
+  const showToast = useCallback((msg: string) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast(msg);
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 2000);
+  }, []);
+
+  // --- Apply spec from chat (apply + autosave + toast) ---
+  const handleApplySpec = useCallback(async (specContent: string) => {
+    if (!editable || !spec || saving) return;
+    setContent(specContent);
+    initialContentRef.current = specContent;
+    setHasChanges(false);
+    setSaving(true);
+    try {
+      await saveVersion(id, specContent, undefined);
+      showToast("Applied & saved");
+    } finally {
+      setSaving(false);
+    }
+  }, [editable, spec, saving, id, saveVersion, showToast]);
 
   // --- Restore version ---
   const handleRestore = useCallback((restoredContent: string) => {
@@ -1593,6 +1618,21 @@ export default function EditSpecificationPage({ params }: { params: Promise<{ id
             </div>
           </div>
         </>
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] pointer-events-none">
+          <div
+            className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-zinc-900/95 backdrop-blur-xl px-4 py-2.5 shadow-2xl shadow-black/40"
+            style={{ animation: "toastIn 2s ease-out forwards" }}
+          >
+            <svg className="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="text-[13px] font-medium text-emerald-300">{toast}</span>
+          </div>
+        </div>
       )}
     </div>
   );

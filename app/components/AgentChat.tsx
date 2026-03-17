@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useAgentStore } from "../hooks/useAgentStore";
 import { useSessionStore } from "../hooks/useSessionStore";
 import { useProjectContext } from "./ProjectContext";
@@ -334,6 +334,32 @@ export function AgentChat({ agentName, context, onApplySpec, initialMessage, aut
     }
   }, [input, isStreaming, clientId, agent, sessionId, addMessage, updateMessages, handleSessionIdReceived]);
 
+  // Find the last applyable assistant message
+  const lastApplyableMsg = useMemo(() => {
+    if (!onApplySpec || isStreaming) return null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === "assistant" && getMessageText(msg)) return msg;
+    }
+    return null;
+  }, [messages, onApplySpec, isStreaming]);
+
+  // "a" key to apply last assistant spec (when textarea not focused)
+  useEffect(() => {
+    if (!lastApplyableMsg || !onApplySpec) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "a" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if ((e.target as HTMLElement)?.isContentEditable) return;
+      e.preventDefault();
+      const specContent = extractSpecContent(getMessageText(lastApplyableMsg));
+      onApplySpec(specContent);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [lastApplyableMsg, onApplySpec]);
+
   // Auto-send initial message once session is ready
   useEffect(() => {
     if (!initialMessage || initialMessageSentRef.current || !clientId || !agent) return;
@@ -454,15 +480,20 @@ export function AgentChat({ agentName, context, onApplySpec, initialMessage, aut
                 )}
               </div>
               {showApplyButton && (
-                <button
-                  onClick={() => {
-                    const specContent = extractSpecContent(getMessageText(msg));
-                    onApplySpec!(specContent);
-                  }}
-                  className="mt-1.5 rounded px-2.5 py-1 text-[11px] font-medium text-cyan-300 bg-cyan-600/20 border border-cyan-600/30 transition-colors hover:bg-cyan-600/30"
-                >
-                  Apply to Editor
-                </button>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <button
+                    onClick={() => {
+                      const specContent = extractSpecContent(getMessageText(msg));
+                      onApplySpec!(specContent);
+                    }}
+                    className="rounded px-2.5 py-1 text-[11px] font-medium text-cyan-300 bg-cyan-600/20 border border-cyan-600/30 transition-colors hover:bg-cyan-600/30"
+                  >
+                    Apply to Editor
+                  </button>
+                  {msg === lastApplyableMsg && (
+                    <kbd className="rounded bg-cyan-500/15 border border-cyan-500/20 px-1.5 py-0.5 text-[9px] font-medium text-cyan-400">a</kbd>
+                  )}
+                </div>
               )}
             </div>
           );
