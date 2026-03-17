@@ -370,6 +370,7 @@ Read knowledge docs using Glob/Read. Output up to 5 most relevant docs as:
     // --- Steps 2 & 3: Coding + Review retry loop ---
     const totalAttempts = maxRetries + 1;
     let lastReviewResult: { score: number; summary: string; issues: string[] } | null = null;
+    const allReviewResults: { iteration: number; score: number; summary: string; issues: string[] }[] = [];
 
     for (let attempt = 1; attempt <= totalAttempts; attempt++) {
       // End the previous iteration's step timing before bumping the iteration counter,
@@ -417,17 +418,41 @@ Implement this specification completely. Make all necessary file changes. Follow
       } else {
         pushLog(runId, "coding", "stdout", `Starting coding agent retry (iteration ${attempt}/${totalAttempts})...`);
 
-        const feedbackBlock = lastReviewResult != null
-          ? `<review-feedback>
-Summary: ${lastReviewResult.summary}
+        // Build cumulative feedback from ALL past iterations
+        let feedbackBlock: string;
+        if (allReviewResults.length > 0) {
+          const sections = allReviewResults.map((r) =>
+            `Iteration ${r.iteration} (score: ${r.score}/100):
+Summary: ${r.summary}
 Issues:
-${lastReviewResult.issues.map(i => `- ${i}`).join('\n')}
-</review-feedback>`
-          : `<review-feedback>
+${r.issues.map(i => `- ${i}`).join('\n')}`
+          ).join('\n\n');
+
+          // Collect all unique issues across iterations for the checklist
+          const allIssues = new Map<string, string>();
+          for (const r of allReviewResults) {
+            for (const issue of r.issues) {
+              // Use lowercase for dedup but keep original casing
+              const key = issue.toLowerCase().trim();
+              if (!allIssues.has(key)) allIssues.set(key, issue);
+            }
+          }
+
+          feedbackBlock = `<review-history>
+${sections}
+</review-history>
+
+<fix-checklist>
+You MUST address ALL of the following issues. After making changes, verify each one is resolved before finishing:
+${Array.from(allIssues.values()).map((issue, i) => `${i + 1}. [ ] ${issue}`).join('\n')}
+</fix-checklist>`;
+        } else {
+          feedbackBlock = `<review-feedback>
 The previous iteration did not produce reviewable changes. Please re-read the specification and try a different approach.
 </review-feedback>`;
+        }
 
-        const retryPrompt = `You are improving an existing implementation in a git worktree. A reviewer has rejected your previous changes.
+        const retryPrompt = `You are improving an existing implementation in a git worktree. A reviewer has rejected your previous changes ${allReviewResults.length} time(s).
 ${knowledgeContext ? `\n<project-knowledge>\n${knowledgeContext}\n</project-knowledge>\n` : ""}
 <specification>
 ${specContent}
@@ -435,7 +460,13 @@ ${specContent}
 
 ${feedbackBlock}
 
-Fix the issues identified by the reviewer. The codebase already contains your previous implementation — read the relevant files and make targeted improvements. Do NOT start over from scratch.`;
+CRITICAL INSTRUCTIONS FOR THIS RETRY:
+1. Read the fix-checklist above carefully — every item must be addressed.
+2. For each issue, read the relevant code, make the fix, and verify the fix is correct.
+3. Do NOT introduce new issues or make unrelated changes while fixing these.
+4. Do NOT revert or undo fixes from previous iterations — build on what's already there.
+5. If an issue from a previous iteration reappears, it means it was accidentally reverted — check git log to see what changed.
+6. Focus on TARGETED fixes, not broad refactoring.`;
 
         const codingStream = stream(retryPrompt, {
           model: "opus",
@@ -512,6 +543,7 @@ Fix the issues identified by the reviewer. The codebase already contains your pr
         }
       }
       lastReviewResult = reviewResult;
+      allReviewResults.push({ iteration: attempt, ...reviewResult });
 
       const score = reviewResult.score;
       pushLog(runId, "reviewing", "stdout", `Review score: ${score}/100`);
