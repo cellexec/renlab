@@ -69,6 +69,19 @@ const FIELDS: FieldDef[] = [
   { key: "systemPrompt", label: "System Prompt", type: "textarea" },
 ];
 
+// ── Color mapping for dialog border ────────────────────────────────────────────
+
+const COLOR_BORDER: Record<string, string> = {
+  "bg-zinc-600": "border-zinc-500/50 shadow-[0_0_30px_-8px_rgba(113,113,122,0.3)]",
+  "bg-blue-600": "border-blue-500/50 shadow-[0_0_30px_-8px_rgba(59,130,246,0.3)]",
+  "bg-purple-600": "border-purple-500/50 shadow-[0_0_30px_-8px_rgba(168,85,247,0.3)]",
+  "bg-amber-600": "border-amber-500/50 shadow-[0_0_30px_-8px_rgba(245,158,11,0.3)]",
+  "bg-red-600": "border-red-500/50 shadow-[0_0_30px_-8px_rgba(239,68,68,0.3)]",
+  "bg-emerald-600": "border-emerald-500/50 shadow-[0_0_30px_-8px_rgba(16,185,129,0.3)]",
+  "bg-pink-600": "border-pink-500/50 shadow-[0_0_30px_-8px_rgba(236,72,153,0.3)]",
+  "bg-cyan-600": "border-cyan-500/50 shadow-[0_0_30px_-8px_rgba(6,182,212,0.3)]",
+};
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function AgentsPage() {
@@ -196,8 +209,14 @@ export default function AgentsPage() {
     requestAnimationFrame(() => {
       const el = dialogFieldRefs.current.get(fieldKey);
       if (el) {
-        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT") {
-          (el as HTMLInputElement).focus();
+        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+          const input = el as HTMLInputElement | HTMLTextAreaElement;
+          input.focus();
+          // Move cursor to end
+          const len = input.value.length;
+          input.setSelectionRange(len, len);
+        } else if (el.tagName === "SELECT") {
+          (el as HTMLSelectElement).focus();
         }
       }
     });
@@ -226,9 +245,27 @@ export default function AgentsPage() {
           const field = FIELDS.find((f) => f.key === dialogEditingField);
           if (e.key === "Escape") {
             e.preventDefault();
-            // Revert this field to saved value
             setEditValues((prev) => ({ ...prev, [dialogEditingField]: savedValues[dialogEditingField] }));
             exitFieldEdit();
+            return;
+          }
+          // Color field: arrow left/right to cycle, Enter to confirm
+          if (field?.type === "color") {
+            if (e.key === "ArrowLeft" || e.key === "h") {
+              e.preventDefault();
+              const curIdx = AGENT_COLORS.indexOf(editValues.color as typeof AGENT_COLORS[number]);
+              const nextIdx = curIdx > 0 ? curIdx - 1 : AGENT_COLORS.length - 1;
+              setEditValues((prev) => ({ ...prev, color: AGENT_COLORS[nextIdx] }));
+              return;
+            }
+            if (e.key === "ArrowRight" || e.key === "l") {
+              e.preventDefault();
+              const curIdx = AGENT_COLORS.indexOf(editValues.color as typeof AGENT_COLORS[number]);
+              const nextIdx = curIdx < AGENT_COLORS.length - 1 ? curIdx + 1 : 0;
+              setEditValues((prev) => ({ ...prev, color: AGENT_COLORS[nextIdx] }));
+              return;
+            }
+            if (e.key === "Enter") { e.preventDefault(); exitFieldEdit(); return; }
             return;
           }
           // Enter saves field (except in textarea where Enter adds newline)
@@ -446,7 +483,7 @@ export default function AgentsPage() {
             onClick={() => { if (dialogHasChanges) saveDialog(); else closeDialog(); }}
           />
           <div
-            className="fixed inset-4 md:inset-y-12 md:inset-x-[20%] lg:inset-y-16 lg:inset-x-[25%] z-50 flex flex-col rounded-2xl border border-white/[0.08] bg-zinc-950/95 backdrop-blur-2xl shadow-2xl overflow-hidden"
+            className={`fixed inset-4 md:inset-y-12 md:inset-x-[20%] lg:inset-y-16 lg:inset-x-[25%] z-50 flex flex-col rounded-2xl border-2 bg-zinc-950/95 backdrop-blur-2xl overflow-hidden transition-colors duration-200 ${COLOR_BORDER[editValues.color] ?? "border-white/[0.08] shadow-2xl"}`}
             style={{ animation: "dashOverlayIn 0.2s ease-out" }}
           >
             {/* Dialog header */}
@@ -497,6 +534,12 @@ export default function AgentsPage() {
                           {isDirty && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />}
                           {isFieldEditing && (
                             <span className="flex items-center gap-1.5 ml-auto">
+                              {field.type === "color" && (
+                                <>
+                                  <kbd className="rounded bg-amber-500/15 border border-amber-500/20 px-1 py-0.5 text-[9px] font-medium text-amber-400">&larr;</kbd>
+                                  <kbd className="rounded bg-amber-500/15 border border-amber-500/20 px-1 py-0.5 text-[9px] font-medium text-amber-400">&rarr;</kbd>
+                                </>
+                              )}
                               {field.type !== "textarea" && (
                                 <kbd className="rounded bg-amber-500/15 border border-amber-500/20 px-1 py-0.5 text-[9px] font-medium text-amber-400">Enter</kbd>
                               )}
